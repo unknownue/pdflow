@@ -1,0 +1,3 @@
+[submodule "metric/PyTorchCD"]
+	path = metric/PyTorchCD
+	url = https://github.com/ThibaultGROUEIX/ChamferDistancePytorch
