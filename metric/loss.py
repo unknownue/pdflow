@@ -5,8 +5,21 @@ import torch
 from torch import nn, Tensor
 from torch.nn import functional as F
 
-
+from metric.emd.emd_module import emdFunction
 from modules.utils.fps import square_distance
+
+
+# -----------------------------------------------------------------------------------------
+class EarthMoverDistance(nn.Module):
+
+    def __init__(self, eps=0.005, iters=50):
+        super().__init__()
+        self.eps = eps
+        self.iters = iters
+
+    def forward(self, preds, gts, **kwargs):
+        loss, _ = emdFunction.apply(preds, gts, self.eps, self.iters)
+        return torch.sum(loss)
 
 
 # -----------------------------------------------------------------------------------------
