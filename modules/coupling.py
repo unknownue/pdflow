@@ -2,7 +2,7 @@
 import torch
 import torch.nn as nn
 
-from torch.tensor import Tensor
+from torch import Tensor
 from typing import Dict
 
 from modules.linear import IdentityLayer

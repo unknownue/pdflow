@@ -2,7 +2,8 @@
 import torch
 import numpy as np
 
-from torch.tensor import Tensor
+from torch import Tensor
+
 
 # -----------------------------------------------------------------------------------------
 class Distribution:

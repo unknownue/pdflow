@@ -6,7 +6,7 @@ sys.path.append(os.getcwd())
 import torch
 import pytorch_lightning as pl
 
-from torch.tensor import Tensor
+from torch import Tensor
 from omegaconf import OmegaConf
 
 from dataset.mnist import MNISTDataModule
@@ -28,8 +28,8 @@ class TrainerModule(LightningModule):
 
         self.network = DenoiseFlow()
 
-        self.train_metric = DenoiseMetrics()
-        self.valid_metric = DenoiseMetrics()
+        self.train_metric = DenoiseMetrics(dim=2)
+        self.valid_metric = DenoiseMetrics(dim=2)
         self.epoch = 1
         
         self.cache = None
@@ -43,33 +43,36 @@ class TrainerModule(LightningModule):
 
     def training_step(self, batch, batch_idx):
 
-        clean_pts, noise_pts, _label = batch
+        clean_pts, noise_pts, noise_probs = batch
 
-        pred_pts, logpx = self(noise_pts)
+        pred_pts, probs, logpx = self(noise_pts)
 
-        metrics = self.train_metric.evaluate(pred_pts, clean_pts)
-        loss = logpx * 1e-4 + metrics['CD'] * 10.0
+        metrics = self.train_metric.evaluate(pred_pts, clean_pts, probs, noise_probs)
+        loss = logpx * 1e-4 + metrics['CD'] * 10.0 + metrics['Confi'] * 1.0
 
         self.log('CD', metrics['CD'] * 10.0, on_step=True, on_epoch=False, prog_bar=True, logger=False)
+        self.log('confi', metrics['Confi'] * 0.5, on_step=True, on_epoch=False, prog_bar=True, logger=False)
         self.log('logpx', logpx * 1e-4, on_step=True, on_epoch=False, prog_bar=True, logger=False)
         return loss
 
     def validation_step(self, batch, batch_idx):
 
-        clean_pts, noise_pts, _label = batch
-        pred_pts, logpx = self(noise_pts)
+        clean_pts, noise_pts, noise_probs = batch
+        pred_pts, probs, logpx = self(noise_pts)
 
-        metrics = self.valid_metric.evaluate(pred_pts, clean_pts)
+        metrics = self.valid_metric.evaluate(pred_pts, clean_pts, probs, noise_probs)
 
         if self.cache is None:
             self.cache = [
                 noise_pts.detach().cpu().numpy(),
                 pred_pts.detach().cpu().numpy(),
+                probs.detach().cpu().numpy(),
             ]
 
         return {
             'vloss': logpx.detach().cpu(),
             'CD'   : metrics['CD'],
+            'Confi': metrics['Confi'],
         }
 
     def validation_epoch_end(self, batch):
@@ -77,13 +80,21 @@ class TrainerModule(LightningModule):
         log_dict = {
             'vloss': torch.tensor([x['vloss'] * 1e-5 for x in batch]).sum().item(),
             'CD'   : torch.tensor([x['CD']           for x in batch]).sum().item(),
+            'Confi': torch.tensor([x['Confi']        for x in batch]).sum().item(),
         }
         
         plot_mnist([
             self.cache[0][0], self.cache[1][0],
             self.cache[0][1], self.cache[1][1],
             self.cache[0][2], self.cache[1][2],
-        ], save_path=f'runs/mnist-figures/Epoch-{self.epoch}.png', matrix_shape=(3, 2), is_show=None)
+        ], save_path=f'runs/mnist-figures/Epoch-{self.epoch}.png', colors=[
+            None, self.cache[2][0],
+            None, self.cache[2][1],
+            None, self.cache[2][2],
+            # None, None,
+            # None, None,
+            # None, None,
+        ], matrix_shape=(3, 2), is_show=None)
         self.cache = None
 
         print_progress_log(self.epoch, log_dict)
@@ -107,7 +118,7 @@ def train(phase='Train', checkpoint_path: str=None, begin_checkpoint: str=None):
         'default_root_dir'     : './runs/',
         'gpus'                 : 1,  # Set this to None for CPU training
         'fast_dev_run'         : False,
-        'max_epochs'           : 100,
+        'max_epochs'           : 20,
         'precision'            : 32,   # 16
         # 'amp_level'            : 'O1',
         'weights_summary'      : 'top',  # 'top', 'full' or None

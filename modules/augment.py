@@ -1,8 +1,7 @@
 
 import torch
 
-from torch import nn
-from torch.tensor import Tensor
+from torch import nn, Tensor
 from torch.nn import functional as F
 
 from modules.utils.distribution import Distribution
@@ -76,7 +75,7 @@ class AugmentStep(nn.Module):
         # self.layer_norm = nn.LayerNorm([hidden_channel, N])
         self.layer_norm = nn.BatchNorm1d(hidden_channel)
         self.conv_out = Conv1DZeros(hidden_channel, channel)
-    
+
     def forward(self, x: Tensor, a: Tensor):
         x1, x2 = torch.chunk(x, chunks=2, dim=1)
 
@@ -91,7 +90,7 @@ class AugmentStep(nn.Module):
         ldj = torch.sum(torch.log(scale).flatten(start_dim=1), dim=-1)
         x = torch.cat([x1, x2], dim=1)
         return x, ldj
-    
+
     def inverse(self, x: Tensor, a: Tensor):
         x1, x2 = torch.chunk(x, chunks=2, dim=1)
 

@@ -34,14 +34,17 @@ class MNISTDataset(Dataset):
 
     def __getitem__(self, index: int):
         clean_pts = self.data[index]  # [N 2]
-        label = self.labels[index]  # scalar
+        # label = self.labels[index]  # scalar
 
         noise = MNISTDataset.gen_noise(self.noise_shape, 0.0, 1.0)
         rand_idx = np.random.randint(0, 1024, self.noise_shape[0])
         noise_pts = np.copy(clean_pts)
         noise_pts[rand_idx] = noise
 
-        return clean_pts.transpose(), noise_pts.transpose(), label
+        noise_label = np.ones((clean_pts.shape[0],), dtype=np.float32)
+        noise_label[rand_idx] = 0.0
+
+        return clean_pts.transpose(), noise_pts.transpose(), noise_label
 
     def gen_noise(shape, min: float, max: float):
         return np.random.rand(*shape) * (max - min) + min

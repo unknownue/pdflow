@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import math
 
-from torch.tensor import Tensor
+from torch import Tensor
 from torch.nn import functional as F
 
 
@@ -56,6 +56,10 @@ class LinearNN1D(nn.Module):
         super(LinearNN1D, self).__init__()
 
         from modules.normalize import ActNorm
+
+        self.in_ch = in_channels
+        self.in_hi = hidden_channels
+        self.out_ch = out_channels
 
         self.in_conv  = nn.Conv1d(in_channels, hidden_channels, kernel_size=1)
         self.norm1    = ActNorm(hidden_channels)
