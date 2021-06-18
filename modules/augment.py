@@ -41,12 +41,13 @@ class AugmentLayer(nn.Module):
         self.n_steps = len(argument_steps)
         self.sigmoid = Sigmoid()
 
-    def forward(self, x: Tensor):
+    def forward(self, x: Tensor, **kwargs):
 
-        (B, _, N), device = x.shape, x.device
+        (B, N, _), device = x.shape, x.device
         ldj = torch.zeros(B, device=device)
 
-        a = self.shallow(x)
+        a = self.shallow(x, **kwargs)
+        a = torch.transpose(a, 1, 2)
 
         eps = self.dist.sample((B, self.channel, N), device)
         eps_ldj = self.dist.log_prob(eps)
@@ -59,6 +60,7 @@ class AugmentLayer(nn.Module):
         y, log_det_J = self.sigmoid(y)
         ldj += log_det_J
 
+        y = torch.transpose(y, 1, 2)
         return y, eps_ldj - ldj
 
 # -----------------------------------------------------------------------------------------

@@ -26,18 +26,18 @@ class AffineCouplingLayer(nn.Module):
 
         self.clamping = clamp or IdentityLayer()
 
-    def forward(self, x: Tensor, c: Tensor=None):
+    def forward(self, x: Tensor, c: Tensor=None, **kwargs):
 
         h1, h2 = self.channel_split(x)
 
         if self.coupling == 'affine':
-            scale = self.clamping(self.scale_net(h1, c))
-            bias  = self.bias_net(h1, c)
+            scale = self.clamping(self.scale_net(h1, c, **kwargs))
+            bias  = self.bias_net(h1, c, **kwargs)
 
             h2 = (h2 - bias) * torch.exp(-scale)
             log_det_J = -scale.flatten(start_dim=1).sum(1)
         elif self.coupling == 'additive':
-            bias = self.bias_net(h1, c)
+            bias = self.bias_net(h1, c, **kwargs)
             h2 = h2 - bias
             log_det_J = None
         else:
@@ -46,18 +46,18 @@ class AffineCouplingLayer(nn.Module):
         x = self.channel_cat(h1, h2)
         return x, log_det_J
 
-    def inverse(self, z: Tensor, c: Tensor=None):
+    def inverse(self, z: Tensor, c: Tensor=None, **kwargs):
         
         h1, h2 = self.channel_split(z)
 
         if self.coupling == 'affine':
-            scale = self.clamping(self.scale_net(h1, c))
-            bias  =  self.bias_net(h1, c)
+            scale = self.clamping(self.scale_net(h1, c, **kwargs))
+            bias  =  self.bias_net(h1, c, **kwargs)
 
             h2 = h2 * torch.exp(scale) + bias
 
         elif self.coupling == 'additive':
-            bias = self.bias_net(h1, c)
+            bias = self.bias_net(h1, c, **kwargs)
             h2 = h2 + bias
         else:
             raise NotImplementedError()
