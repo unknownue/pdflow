@@ -1,6 +1,6 @@
 
 import torch
-
+import numpy as np
 
 
 # ---------------------------------------------------------------------
@@ -27,3 +27,12 @@ def square_distance(src, dst):
     dist += torch.sum(src ** 2, -1).view(B, N, 1)
     dist += torch.sum(dst ** 2, -1).view(B, 1, M)
     return dist
+
+
+# ---------------------------------------------------------------------
+def normalize_point_cloud_numpy(v: np.array):
+    center = np.mean(v, axis=0, keepdims=True)
+    v = v - center
+    scale = (1 / np.abs(v).max()) * 0.999999
+    v = v * scale
+    return v, center, scale

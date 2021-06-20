@@ -42,13 +42,13 @@ class ChamferDistance(nn.Module):
 
     def forward(self, points1: Tensor, points2: Tensor):
         """
-        points1: [B, C, N1],
-        points2: [B, C, N2],
+        points1: [B, N1, C]
+        points2: [B, N2, C]
         confi  : [B, N1],
         """
 
-        points1 = points1.transpose(1, 2)
-        points2 = points2.transpose(1, 2)
+        # points1 = points1.transpose(1, 2)
+        # points2 = points2.transpose(1, 2)
 
         # CD
         dist1, dist2, _, _ = self.chamLoss(points1, points2)  # square distance, [B, N1], [B, N2]

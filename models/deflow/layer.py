@@ -22,7 +22,7 @@ def knn_group(x: Tensor, i: Tensor):
     return torch.gather(x, dim=2, index=i)
 
 # -----------------------------------------------------------------------------------------
-def get_knn_idx(k: int, f: Tensor, q: Tensor=None, offset=None, return_features=True):
+def get_knn_idx(k: int, f: Tensor, q: Tensor=None, offset=None, return_features=False):
     """
     f: [B, N, C]
     q: [B, M, C]
@@ -52,10 +52,8 @@ def get_knn_idx(k: int, f: Tensor, q: Tensor=None, offset=None, return_features=
 # -----------------------------------------------------------------------------------------
 class KnnConvUnit(nn.Module):
 
-    def __init__(self, in_channel, hidden_channel, out_channel, k=None, bias=True):
+    def __init__(self, in_channel, hidden_channel, out_channel, bias=True):
         super(KnnConvUnit, self).__init__()
-
-        self.k = k
 
         self.linear1 = nn.Linear(in_channel * 3, hidden_channel, bias=bias)
         self.linear2 = nn.Linear(hidden_channel, hidden_channel, bias=bias)
@@ -72,7 +70,8 @@ class KnnConvUnit(nn.Module):
         """
 
         if knn_idx is None:
-            knn_feat, _ = get_knn_idx(self.k, f, q=None, offset=None, return_features=True)
+            raise NotImplementedError()
+            # knn_feat, _ = get_knn_idx(self.k, f, q=None, offset=None, return_features=True)
         else:
             knn_feat = knn_group(f, knn_idx)  # [B, M, k, C]
 
@@ -107,7 +106,7 @@ class AugmentShallow(nn.Module):
         knn_idx: [B, N, k]
         """
         if knn_idx is None:
-            knn_idx = get_knn_idx(12, x, return_features=False)
+            knn_idx = get_knn_idx(12, x)
 
         x = knn_group(x, knn_idx)   # [B, N, k, C]
         x = self.trans1(x)   # [B, N, h]
