@@ -16,6 +16,8 @@ from tqdm import tqdm
 
 from modules.utils.fps import normalize_point_cloud_numpy
 from models.deflow.deflow import DenoiseFlow
+from modules.utils.modules import BatchIdxIter
+
 from sklearn.cluster import KMeans
 from sklearn.neighbors import kneighbors_graph
 
@@ -28,8 +30,8 @@ def run_denoise(pc, network, patch_size, device, random_state=0, expand_knn=16, 
         print(f'[INFO] Center {repr(center)} | Scale {scale:%.6f}')
     
     n_clusters = math.ceil(pc.shape[0] / patch_size)
-    kmeans = KMeans(n_clusters=n_clusters, random_state=random_state, n_jobs=16).fit(pc)
-    knn_graph = kneighbors_graph(pc, n_neighbors=expand_knn, mode='distance', include_self=False, n_jobs=8)
+    kmeans = KMeans(n_clusters=n_clusters, random_state=random_state).fit(pc)
+    knn_graph = kneighbors_graph(pc, n_neighbors=expand_knn, mode='distance', include_self=False)
     knn_idx = np.array(knn_graph.tolil().rows.tolist())
 
     patches = []
@@ -41,16 +43,27 @@ def run_denoise(pc, network, patch_size, device, random_state=0, expand_knn=16, 
 
         patches.append(pc[expand_idx])
         extra_points.append(pc[extra_idx])
-    
+
     # Denoise patch by patch
-    # TODO: Improve speed by manage patch in batch
     denoised_patches = []
-    for patch in tqdm(patches):
+    for patch in patches:
         patch = torch.FloatTensor(patch).unsqueeze(0).to(device)
-        pred = network(patch)
+        pred, _ = network(patch)
         pred = pred.detach().cpu().reshape(-1, 3).numpy()
         denoised_patches.append(pred)
     denoised = np.concatenate(denoised_patches, axis=0)
+
+    # denoised_patches = []
+    # total_batch = len(patches)
+    # patches = np.array(patches, dtype=np.float32)
+    # for _, batch_idx in BatchIdxIter(batch_size=8, N=total_batch):
+    #     sub_patches = patches[batch_idx]  # [B, N, C]
+    #     sub_patches = torch.from_numpy(sub_patches).to(device)
+    #     pred, _ = network(sub_patches)  # [B, N, C]
+    #     pred = pred.detach().cpu().numpy()
+    #     denoised_patches.append(pred)  # list of [B, N, C]
+    # denoised = np.concatenate(denoised_patches, axis=0).reshape(-1, 3)
+
     denoised = (denoised / scale) + center
 
     return denoised
@@ -74,9 +87,9 @@ def run_denoise_middle_point_cloud(pc, network, num_splits, patch_size, device, 
 
 def run_denoise_large_point_cloud(pc, network, cluster_size, patch_size, device, random_state=0, expand_knn=16, verbose=False):
     n_clusters = math.ceil(pc.shape[0] / cluster_size)
-    kmeans = KMeans(n_clusters=n_clusters, random_state=random_state, n_jobs=16).fit(pc)
+    kmeans = KMeans(n_clusters=n_clusters, random_state=random_state).fit(pc)
 
-    knn_graph = kneighbors_graph(pc, n_neighbors=expand_knn, mode='distance', include_self=False, n_jobs=8)
+    knn_graph = kneighbors_graph(pc, n_neighbors=expand_knn, mode='distance', include_self=False)
     knn_idx = np.array(knn_graph.tolil().rows.tolist())
 
     centers = []
@@ -128,7 +141,7 @@ def auto_denoise_file(args, ipath, opath, network=None):
     else:
         assert False, "Our pretrained model does not support point clouds with less than 10K points"
     
-    np.savetxt(opath, denoised)
+    np.savetxt(opath, denoised, fmt='%.6f')
 
 
 def denoise_directory(args, idir, odir):
@@ -153,7 +166,7 @@ if __name__ == '__main__':
     parser.add_argument('--cluster_size', type=int, default=30000, help='Number of clusters for large point clouds')
     parser.add_argument('--num_splicts', type=int, default=2, help='Number of splits for middle-sized point clouds')
     parser.add_argument('--device', type=str, default='cuda')
-    parser.add_argument('--verbose', action='store_true', type=bool)
+    parser.add_argument('--verbose', action='store_true')
     args = parser.parse_args()
 
 

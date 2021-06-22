@@ -18,6 +18,7 @@ ENV PATH="/home/$DOCKER_USER/.local/bin:${PATH}"
 
 RUN apt update && \
     apt install -y --no-install-recommends sudo && \
+    apt install -y --no-install-recommends nvim && \
     rm -rf /var/lib/apt/lists/*
 
 
@@ -25,13 +26,13 @@ RUN apt update && \
 # See also http://gbraad.nl/blog/non-root/user/inside-a-docker-container.html
 RUN adduser --disabled-password --gecos '' $DOCKER_USER && \
     adduser $DOCKER_USER sudo && \
-    echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+    echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers && \
+    echo "[core]editor=nvim" >> ~/.gitconfig
 USER $DOCKER_USER
 
 # Packages -----------------------------------------------------------------
 RUN pip install --no-cache-dir --user pqi && pqi use aliyun
 RUN pip install --no-cache-dir --user pytorch_lightning==1.3.0
-
 
 
 # CMD ["bash"]

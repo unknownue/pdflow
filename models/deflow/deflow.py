@@ -55,7 +55,7 @@ class DenoiseFlow(nn.Module):
     def __init__(self, pc_channel=3):
         super(DenoiseFlow, self).__init__()
 
-        self.nflow_module = 10
+        self.nflow_module = 12
         self.in_channel = pc_channel
         self.aug_channel = 12
         self.cut_channel = 3

@@ -1,5 +1,5 @@
-
 import os
+
 import sys
 sys.path.append(os.getcwd())
 
@@ -88,7 +88,7 @@ def model_specific_args():
     parser.add_argument('--sched_factor', default=0.5, type=float)
     parser.add_argument('--min_lr', default=1e-5, type=float)
     # Training
-    parser.add_argument('--max_epoch', default=50, type=int)
+    parser.add_argument('--max_epoch', default=100, type=int)
     parser.add_argument('--seed', default=2021, type=int)
 
     return parser
@@ -116,7 +116,7 @@ def dataset_specific_args():
 # -----------------------------------------------------------------------------------------
 def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
 
-    comment = 'Baseline'
+    comment = 'nflow-12'
     cfg = model_specific_args().parse_args()
     pl.seed_everything(cfg.seed)
 
@@ -128,9 +128,9 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
         'gpus'                 : 1,  # Set this to None for CPU training
         'fast_dev_run'         : False,
         'max_epochs'           : cfg.max_epoch,
+        'weights_summary'      : 'top',  # 'top', 'full' or None
         'precision'            : 16,   # 16
         # 'amp_level'            : 'O1',
-        'weights_summary'      : 'top',  # 'top', 'full' or None
         'gradient_clip_val'    : 1e-3,
         'deterministic'        : False,
         'num_sanity_val_steps' : -1,  # -1 or 0
@@ -153,7 +153,7 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
 
         if checkpoint_path is not None and trainer_config['fast_dev_run'] is False and trainer.is_interrupted is False:
             save_path = checkpoint_path + f'-epoch{trainer_config["max_epochs"]}.ckpt'
-            torch.save(module.network, save_path)
+            torch.save(module.network.state_dict(), save_path)
             print(f'Model has been save to \033[1m{save_path}\033[0m')
     else:  # Test
         module.network = torch.load(checkpoint_path, map_location='cpu')
