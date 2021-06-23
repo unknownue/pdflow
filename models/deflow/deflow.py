@@ -18,27 +18,36 @@ from models.deflow.layer import KnnConvUnit, AugmentShallow, get_knn_idx
 # -----------------------------------------------------------------------------------------
 class FlowAssembly(nn.Module):
     
-    def __init__(self, idim, hdim):
+    def __init__(self, idim, hdim, id):
         super(FlowAssembly, self).__init__()
 
         channel1 = idim - idim // 2
         channel2 = idim // 2
 
         self.actnorm = ActNorm(idim, dim=2)
-        self.permutate = Permutation('reverse', idim, dim=2)  # TODO: inv1x1
+
+        # if id % 3 == 0:
+        #     # self.permutate = Permutation('inv1x1', idim, dim=2)
+        #     self.permutate = Permutation('random', idim, dim=2)
+        # else:
+        #     self.permutate = Permutation('reverse', idim, dim=2)
+        self.permutate = Permutation('reverse', idim, dim=2)
+
         self.coupling1 = AffineCouplingLayer('affine', KnnConvUnit, split_dim=2, clamp=SoftClampling(),
             params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, })
         self.coupling2 = AffineCouplingLayer('affine', KnnConvUnit, split_dim=2, clamp=SoftClampling(),
             params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, })
-    
+
     def forward(self, x: Tensor, c: Tensor=None, knn_idx=None):
         x, _log_det2 = self.permutate(x, c)
         x, _log_det0 = self.actnorm(x)
         x, _log_det1 = self.coupling1(x, c, knn_idx=knn_idx)
         x, _log_det3 = self.coupling2(x, c, knn_idx=knn_idx)
 
-        # return x, _log_det0 + _log_det1 + _log_det2 + _log_det3
-        return x, _log_det0 + _log_det1 + _log_det3
+        if _log_det2 is not None:
+            return x, _log_det0 + _log_det1 + _log_det2 + _log_det3
+        else:
+            return x, _log_det0 + _log_det1 + _log_det3
     
     def inverse(self, z: Tensor, c: Tensor=None, knn_idx=None):
         z = self.coupling2.inverse(z, c, knn_idx=knn_idx)
@@ -57,7 +66,7 @@ class DenoiseFlow(nn.Module):
 
         self.nflow_module = 12
         self.in_channel = pc_channel
-        self.aug_channel = 12
+        self.aug_channel = 20
         self.cut_channel = 3
 
         self.dist = GaussianDistribution()
@@ -75,8 +84,8 @@ class DenoiseFlow(nn.Module):
         self.pre_ks = [8, 16, 24]
         flow_assemblies = []
 
-        for _ in range(self.nflow_module):
-            flow = FlowAssembly(self.in_channel + self.aug_channel, hdim=64)
+        for i in range(self.nflow_module):
+            flow = FlowAssembly(self.in_channel + self.aug_channel, hdim=64, id=i)
             flow_assemblies.append(flow)
         self.flow_assemblies = nn.ModuleList(flow_assemblies)
 

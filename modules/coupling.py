@@ -14,7 +14,7 @@ class AffineCouplingLayer(nn.Module):
     def __init__(self, coupling: str, transform_net: nn.Module, params: Dict, split_dim=1, clamp=None):
         super(AffineCouplingLayer, self).__init__()
 
-        assert coupling in ['additive', 'affine']
+        assert coupling in ['additive', 'affine', 'affineEx']
         assert split_dim in [-1, 1, 2, 3]
         self.coupling  = coupling
         self.dim = split_dim
@@ -23,6 +23,13 @@ class AffineCouplingLayer(nn.Module):
 
         if self.coupling == 'affine':
             self.scale_net = transform_net(**params)
+        elif self.coupling == 'affineEx':
+            params_t = params
+            params_t['in_channel'] = params['out_channel']
+            params_t['out_channel'] = params['in_channel']
+            self.g1 = transform_net(**params_t)
+            self.g2 = transform_net(**params)
+            self.g3 = transform_net(**params)
 
         self.clamping = clamp or IdentityLayer()
 
@@ -40,6 +47,13 @@ class AffineCouplingLayer(nn.Module):
             bias = self.bias_net(h1, c, **kwargs)
             h2 = h2 - bias
             log_det_J = None
+        elif self.coupling == 'affineEx':
+            scale = self.clamping(self.g2(h1, c, **kwargs))
+            bias  = self.g3(h1, c, **kwargs)
+    
+            h1 = h1 + self.g1(h2)
+            h2 = torch.exp(scale) * h2 + bias
+            log_det_J = scale.flatten(start_dim=1).sum(1)
         else:
             raise NotImplementedError()
 
@@ -59,6 +73,12 @@ class AffineCouplingLayer(nn.Module):
         elif self.coupling == 'additive':
             bias = self.bias_net(h1, c, **kwargs)
             h2 = h2 + bias
+        elif self.coupling == 'affineEx':
+            scale = self.clamping(self.g2(h1, c, **kwargs))
+            bias  = self.g3(h1, c, **kwargs)
+
+            h2 = (h2 - bias) * torch.exp(-scale)
+            h1 = h1 - self.g1(h2)
         else:
             raise NotImplementedError()
 

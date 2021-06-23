@@ -1,5 +1,5 @@
-import os
 
+import os
 import sys
 sys.path.append(os.getcwd())
 
@@ -71,6 +71,11 @@ class TrainerModule(LightningModule):
             batch_size = 8
             n = len(batch) * batch_size
             log_dict[key] = torch.tensor([x[key] for x in batch]).sum().detach().cpu() / n
+        
+        if self.epoch == 100:
+            save_path = 'runs/ckpt/DenoiseFlow-baseline-epoch100.ckpt'
+            torch.save(self.network.state_dict(), save_path)
+            print(f'Model at 100 epoch has been save to {save_path}')
 
         print_progress_log(self.epoch, log_dict)
         self.epoch += 1
@@ -88,7 +93,7 @@ def model_specific_args():
     parser.add_argument('--sched_factor', default=0.5, type=float)
     parser.add_argument('--min_lr', default=1e-5, type=float)
     # Training
-    parser.add_argument('--max_epoch', default=100, type=int)
+    # parser.add_argument('--max_epoch', default=50, type=int)
     parser.add_argument('--seed', default=2021, type=int)
 
     return parser
@@ -116,7 +121,7 @@ def dataset_specific_args():
 # -----------------------------------------------------------------------------------------
 def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
 
-    comment = 'nflow-12'
+    comment = 'nflow-12_aug-20'
     cfg = model_specific_args().parse_args()
     pl.seed_everything(cfg.seed)
 
@@ -127,7 +132,7 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
         'default_root_dir'     : './runs/',
         'gpus'                 : 1,  # Set this to None for CPU training
         'fast_dev_run'         : False,
-        'max_epochs'           : cfg.max_epoch,
+        'max_epochs'           : 200, # cfg.max_epoch,
         'weights_summary'      : 'top',  # 'top', 'full' or None
         'precision'            : 16,   # 16
         # 'amp_level'            : 'O1',
