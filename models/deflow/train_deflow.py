@@ -11,6 +11,7 @@ from argparse import ArgumentParser
 
 from dataset.dmrdenoise import DMRDenoiseDataModule
 from models.deflow.deflow import DenoiseFlow
+from metric.loss import MaskLoss
 from metric.loss import EarthMoverDistance as EMD
 # from metric.loss import ChamferDistance as CD
 
@@ -27,10 +28,13 @@ class TrainerModule(LightningModule):
 
         self.network = DenoiseFlow()
         self.metric = EMD()
+        # self.mloss = MaskLoss()
 
-        self.epoch = 1
+        self.epoch = 0
         self.cfg = cfg
-    
+
+        self.min_noisy03 = 0.40
+
     def forward(self, p: Tensor, **kwargs):
         return self.network(p, **kwargs)
     
@@ -42,13 +46,15 @@ class TrainerModule(LightningModule):
     def training_step(self, batch, batch_idx):
 
         noise, noiseless = batch['pos'], batch['clean']
-        denoised, logpx = self(noise)
+        denoised, logpx, mask = self(noise)
 
         emd = self.metric(denoised, noiseless)
+        # lmask = self.mloss(mask)
         loss = logpx * 1e-5 + emd * 1e-2
 
         self.log('EMD', emd.detach().cpu().item() * 1e-2, on_step=True, on_epoch=False, prog_bar=True, logger=False)
         self.log('logpx', logpx * 1e-5, on_step=True, on_epoch=False, prog_bar=True, logger=False)
+        # self.log('mask', lmask * 0.05, on_step=True, on_epoch=False, prog_bar=True, logger=False)
 
         return loss
 
@@ -58,7 +64,7 @@ class TrainerModule(LightningModule):
 
         for key in self.trainer.datamodule.val_noisy_item_keys:
             noise, noiseless = batch[key], batch['clean']
-            denoised, _ = self(noise)
+            denoised, _, _ = self(noise)
             output[key] = self.metric(denoised, noiseless)
 
         return output
@@ -71,11 +77,16 @@ class TrainerModule(LightningModule):
             batch_size = 8
             n = len(batch) * batch_size
             log_dict[key] = torch.tensor([x[key] for x in batch]).sum().detach().cpu() / n
-        
-        if self.epoch == 100:
-            save_path = 'runs/ckpt/DenoiseFlow-baseline-epoch100.ckpt'
+
+        if self.epoch == 100 or self.epoch == 150:
+            save_path = f'runs/ckpt/DenoiseFlow-baseline-epoch{self.epoch}.ckpt'
             torch.save(self.network.state_dict(), save_path)
-            print(f'Model at 100 epoch has been save to {save_path}')
+            print(f'Model at {self.epoch} epoch has been save to {save_path}')
+        if log_dict['noisy_0.03'] < self.min_noisy03:
+            self.min_noisy03 = log_dict['noisy_0.03']
+            save_path = f'runs/ckpt/DenoiseFlow-baseline-min_noisy03.ckpt'
+            torch.save(self.network.state_dict(), save_path)
+            print(f'Model at {self.epoch} epoch has been save to {save_path}')
 
         print_progress_log(self.epoch, log_dict)
         self.epoch += 1
@@ -93,7 +104,7 @@ def model_specific_args():
     parser.add_argument('--sched_factor', default=0.5, type=float)
     parser.add_argument('--min_lr', default=1e-5, type=float)
     # Training
-    # parser.add_argument('--max_epoch', default=50, type=int)
+    parser.add_argument('--max_epoch', default=50, type=int)
     parser.add_argument('--seed', default=2021, type=int)
 
     return parser
@@ -121,7 +132,7 @@ def dataset_specific_args():
 # -----------------------------------------------------------------------------------------
 def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
 
-    comment = 'nflow-12_aug-20'
+    comment = 'nflow-12_aug-20-fix-mask'
     cfg = model_specific_args().parse_args()
     pl.seed_everything(cfg.seed)
 

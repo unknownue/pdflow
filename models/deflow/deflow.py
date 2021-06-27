@@ -1,6 +1,7 @@
 
 import torch
 import torch.nn as nn
+import numpy as np
 
 from torch import Tensor
 from typing import List
@@ -89,10 +90,26 @@ class DenoiseFlow(nn.Module):
             flow_assemblies.append(flow)
         self.flow_assemblies = nn.ModuleList(flow_assemblies)
 
-        # Channel Mask
-        # TODO: try to make this learnable
+        # Channel Mask ----------------------------------
+        # Fix channel mask
         self.channel_mask = nn.Parameter(torch.ones((1, 1, self.in_channel + self.aug_channel)), requires_grad=False)
         self.channel_mask[:, -self.cut_channel:] = 0.0
+
+        # Random initialization (Works, but slow to convergence)
+        # w_init = np.random.randn(self.in_channel + self.aug_channel, self.in_channel + self.aug_channel)
+        # w_init = np.linalg.qr(w_init)[0].astype(np.float32)
+        # self.channel_mask = nn.Parameter(torch.from_numpy(w_init), requires_grad=True)
+
+        # Identity initialization
+        # w_init = torch.eye(self.in_channel + self.aug_channel)
+        # w_init[-self.cut_channel:] = 0.0
+        # w_init = w_init + torch.randn_like(w_init) * 0.05
+        # self.channel_mask = nn.Parameter(w_init, requires_grad=True)
+
+        # Learnable binary mask
+        # theta = torch.rand((1, 1, self.in_channel + self.aug_channel))
+        # self.theta = nn.Parameter(theta, requires_grad=True)
+        # -----------------------------------------------
 
     def f(self, x: Tensor, xyz: Tensor):
         log_det_J = torch.zeros((x.shape[0],), device=x.device)
@@ -120,7 +137,7 @@ class DenoiseFlow(nn.Module):
     def log_prob(self, xyz: Tensor):
 
         y, aug_ldj = self.argument(xyz)
-        x = torch.cat([xyz, y], dim=-1)
+        x = torch.cat([xyz, y], dim=-1)  # [B, N, 3 + C]
         z, flow_ldj, idxes = self.f(x, xyz)
         logpz = self.dist.log_prob(z)
 
@@ -135,13 +152,21 @@ class DenoiseFlow(nn.Module):
 
     def forward(self, x: Tensor):
         z, ldj, idxes = self.log_prob(x)
+        mask = None
 
-        # clean_z = z * self.channel_mask.expand_as(z)
-        z[:, -self.cut_channel:] = 0
+        # Fix channel mask
+        z[..., -self.cut_channel:] = 0
         clean_z = z
-        
+        # Identity initialization
+        # clean_z = torch.einsum('ij,bnj->bni', self.channel_mask, z)
+        # Random initialization
+        # clean_z = z * self.channel_mask.expand_as(z)
+        # Learnable binary mask
+        # mask = torch.max(torch.zeros_like(self.theta), 1.0 - (-self.theta).exp())
+        # clean_z = z * mask
+
         clean_x = self.sample(clean_z, idxes)
-        return clean_x, ldj
+        return clean_x, ldj, mask
 
     def nll_loss(self, pts_shape, sldj):
         #ll = sldj - np.log(self.k) * torch.prod(pts_shape[1:])

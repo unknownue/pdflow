@@ -10,6 +10,17 @@ from modules.utils.fps import square_distance
 
 
 # -----------------------------------------------------------------------------------------
+class MaskLoss(nn.Module):
+
+    def forward(self, mask):
+        """
+        mask: [1, 1, C]
+        """
+        loss = torch.abs(mask * (1 - mask))  # [1, 1, C]
+        return torch.sum(loss)
+
+
+# -----------------------------------------------------------------------------------------
 class EarthMoverDistance(nn.Module):
 
     def __init__(self, eps=0.005, iters=50):

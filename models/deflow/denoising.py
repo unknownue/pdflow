@@ -48,7 +48,7 @@ def run_denoise(pc, network, patch_size, device, random_state=0, expand_knn=16, 
     denoised_patches = []
     for patch in patches:
         patch = torch.FloatTensor(patch).unsqueeze(0).to(device)
-        pred, _ = network(patch)
+        pred, _, _ = network(patch)
         pred = pred.detach().cpu().reshape(-1, 3).numpy()
         denoised_patches.append(pred)
     denoised = np.concatenate(denoised_patches, axis=0)

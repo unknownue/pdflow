@@ -68,7 +68,6 @@ class KnnConvUnit(nn.Module):
         knn_idx: [B, N, k]
         return: [B, N, out]
         """
-
         if knn_idx is None:
             raise NotImplementedError()
             # knn_feat, _ = get_knn_idx(self.k, f, q=None, offset=None, return_features=True)

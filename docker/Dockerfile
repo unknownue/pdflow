@@ -13,12 +13,12 @@ ARG DOCKER_USER=unknownue
 ARG DOCKER_PASSWORD=password
 
 ENV PATH="/home/$DOCKER_USER/.local/bin:${PATH}"
-# ADD mirror-ubuntu2004.txt /etc/apt/sources.list
+ADD mirror-ubuntu2004.txt /etc/apt/sources.list
 
 
 RUN apt update && \
     apt install -y --no-install-recommends sudo && \
-    apt install -y --no-install-recommends nvim && \
+    apt install -y --no-install-recommends neovim && \
     rm -rf /var/lib/apt/lists/*
 
 

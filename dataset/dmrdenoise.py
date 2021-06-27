@@ -72,7 +72,7 @@ class DMRDenoiseDataModule(pl.LightningDataModule):
             print(f'[INFO] Using random noise level [{noise_l}, {noise_h}]')
         else:
             noisifier = AddNoise(std=self.cfg.noise_low)
-        
+
         # Scaling augmentation
         if self.cfg.aug_scale:
             print('[INFO] Scaling augmentation Enable')
@@ -81,7 +81,7 @@ class DMRDenoiseDataModule(pl.LightningDataModule):
         else:
             print('[INFO] Scaling augmentation Disable')
             scaler = IdentityTransform()
-        
+
         t = transforms.Compose([
             noisifier,
             # rotate normal vectors as well
