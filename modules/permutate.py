@@ -37,12 +37,15 @@ class _ShufflePermutation(nn.Module):
         super(_ShufflePermutation, self).__init__()
 
         if permutation == 'reverse':
-            self.direct_idx = np.arange(n_channel - 1, -1, -1).astype(np.long)
-            self.inverse_idx = _ShufflePermutation.get_reverse(self.direct_idx, n_channel)
+            direct_idx = np.arange(n_channel - 1, -1, -1).astype(np.long)
+            inverse_idx = _ShufflePermutation.get_reverse(direct_idx, n_channel)
         if permutation == 'random':
-            self.direct_idx = np.arange(n_channel - 1, -1, -1).astype(np.long)
-            np.random.shuffle(self.direct_idx)
-            self.inverse_idx = _ShufflePermutation.get_reverse(self.direct_idx, n_channel)
+            direct_idx = np.arange(n_channel - 1, -1, -1).astype(np.long)
+            np.random.shuffle(direct_idx)
+            inverse_idx = _ShufflePermutation.get_reverse(direct_idx, n_channel)
+
+        self.register_buffer('direct_idx', torch.from_numpy(direct_idx))
+        self.register_buffer('inverse_idx', torch.from_numpy(inverse_idx))
 
     @staticmethod
     def get_reverse(idx, n_channel: int):
@@ -96,7 +99,7 @@ class InvertibleConv1x1_1D(nn.Module):
         w_init = np.random.randn(channel, channel)
         w_init = np.linalg.qr(w_init)[0].astype(np.float32)
 
-        self.W = nn.Parameter(torch.from_numpy(w_init))
+        self.W = nn.Parameter(torch.from_numpy(w_init), requires_grad=True)
         # init.normal_(self.W, std=0.01)
 
         if dim == 1:
