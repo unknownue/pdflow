@@ -33,7 +33,11 @@ class TrainerModule(LightningModule):
         self.epoch = 0
         self.cfg = cfg
 
-        self.min_noisy03 = 0.40
+        self.min_noisy_v = {
+            'noisy_0.01': 0.23,
+            'noisy_0.03': 0.40,
+            'noisy_0.08': 1.90,
+        }
 
     def forward(self, p: Tensor, **kwargs):
         return self.network(p, **kwargs)
@@ -82,11 +86,12 @@ class TrainerModule(LightningModule):
             save_path = f'runs/ckpt/DenoiseFlow-baseline-epoch{self.epoch}.ckpt'
             torch.save(self.network.state_dict(), save_path)
             print(f'Model at {self.epoch} epoch has been save to {save_path}')
-        if log_dict['noisy_0.03'] < self.min_noisy03:
-            self.min_noisy03 = log_dict['noisy_0.03']
-            save_path = f'runs/ckpt/DenoiseFlow-baseline-min_noisy03.ckpt'
-            torch.save(self.network.state_dict(), save_path)
-            print(f'Model at {self.epoch} epoch has been save to {save_path}')
+        for key in keys:
+            if log_dict[key] < self.min_noisy_v[key]:
+                self.min_noisy_v[key] = log_dict[key]
+                save_path = f'runs/ckpt/DenoiseFlow-baseline-min_{key}.ckpt'
+                torch.save(self.network.state_dict(), save_path)
+                print(f'Model at {self.epoch} epoch has been save to {save_path}')
 
         print_progress_log(self.epoch, log_dict)
         self.epoch += 1
@@ -132,7 +137,7 @@ def dataset_specific_args():
 # -----------------------------------------------------------------------------------------
 def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
 
-    comment = 'nflow-12_aug-20-fix-mask'
+    comment = 'nflow-12_aug-20-fix-mask-k16'
     cfg = model_specific_args().parse_args()
     pl.seed_everything(cfg.seed)
 
@@ -143,7 +148,7 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
         'default_root_dir'     : './runs/',
         'gpus'                 : 1,  # Set this to None for CPU training
         'fast_dev_run'         : False,
-        'max_epochs'           : 200, # cfg.max_epoch,
+        'max_epochs'           : 100, # cfg.max_epoch,
         'weights_summary'      : 'top',  # 'top', 'full' or None
         'precision'            : 16,   # 16
         # 'amp_level'            : 'O1',

@@ -28,7 +28,7 @@ def run_denoise(pc, network, patch_size, device, random_state=0, expand_knn=16, 
 
     if verbose:
         print(f'[INFO] Center {repr(center)} | Scale {scale:%.6f}')
-    
+
     n_clusters = math.ceil(pc.shape[0] / patch_size)
     kmeans = KMeans(n_clusters=n_clusters, random_state=random_state).fit(pc)
     knn_graph = kneighbors_graph(pc, n_neighbors=expand_knn, mode='distance', include_self=False)
@@ -130,13 +130,16 @@ def auto_denoise_file(args, ipath, opath, network=None):
     N, _ = pc.shape
 
     if N >= 120000:
-        print('[INFO] Denoising large point cloud: %s' % ipath)
+        if args.verbose:
+            print('[INFO] Denoising large point cloud: %s' % ipath)
         denoised = run_denoise_large_point_cloud(pc, network, args.cluster_size, args.patch_size, args.device, args.seed, args.expand_knn, args.verbose)
     elif N >= 60000:
-        print('[INFO] Denoising middle-sized point cloud: %s' % ipath)
+        if args.verbose:
+            print('[INFO] Denoising middle-sized point cloud: %s' % ipath)
         denoised = run_denoise_middle_point_cloud(pc, network, args.num_splits, args.patch_size, args.device, args.seed, args.expand_knn, args.verbose)
     elif N >= 10000:
-        print('[INFO] Denoising regular-sized point cloud: %s' % ipath)
+        if args.verbose:
+            print('[INFO] Denoising regular-sized point cloud: %s' % ipath)
         denoised = run_denoise(pc, network, args.patch_size, args.device, args.seed, args.expand_knn, args.verbose)
     else:
         assert False, "Our pretrained model does not support point clouds with less than 10K points"
@@ -181,3 +184,5 @@ if __name__ == '__main__':
         auto_denoise_file(args, args.input, args.output)
     else:
         assert False, "Invalid input or output path"
+    
+    print(f'Finish denoising {args.input}...')

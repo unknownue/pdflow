@@ -11,7 +11,7 @@ from modules.linear import SoftClampling
 from modules.augment import AugmentLayer, AugmentStep
 from modules.normalize import ActNorm
 from modules.permutate import Permutation
-from modules.coupling import AffineCouplingLayer
+from modules.coupling import AffineCouplingLayer, AffineInjectorLayer
 
 from models.deflow.layer import KnnConvUnit, AugmentShallow, get_knn_idx
 
@@ -32,7 +32,8 @@ class FlowAssembly(nn.Module):
         #     self.permutate = Permutation('random', idim, dim=2)
         # else:
         #     self.permutate = Permutation('reverse', idim, dim=2)
-        self.permutate = Permutation('reverse', idim, dim=2)
+        self.permutate1 = Permutation('reverse', idim, dim=2)
+        self.permutate2 = Permutation('random', idim, dim=2)
 
         self.coupling1 = AffineCouplingLayer('affine', KnnConvUnit, split_dim=2, clamp=SoftClampling(),
             params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, })
@@ -40,9 +41,10 @@ class FlowAssembly(nn.Module):
             params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, })
 
     def forward(self, x: Tensor, c: Tensor=None, knn_idx=None):
-        x, _log_det2 = self.permutate(x, c)
+        x, _log_det2 = self.permutate1(x, c)
         x, _log_det0 = self.actnorm(x)
         x, _log_det1 = self.coupling1(x, c, knn_idx=knn_idx)
+        x, _log_det4 = self.permutate2(x, c)
         x, _log_det3 = self.coupling2(x, c, knn_idx=knn_idx)
 
         if _log_det2 is not None:
@@ -52,9 +54,10 @@ class FlowAssembly(nn.Module):
     
     def inverse(self, z: Tensor, c: Tensor=None, knn_idx=None):
         z = self.coupling2.inverse(z, c, knn_idx=knn_idx)
+        z = self.permutate2.inverse(z, c)
         z = self.coupling1.inverse(z, c, knn_idx=knn_idx)
         z = self.actnorm.inverse(z)
-        z = self.permutate.inverse(z, c)
+        z = self.permutate1.inverse(z, c)
 
         return z
 
@@ -119,7 +122,7 @@ class DenoiseFlow(nn.Module):
             if i < len(self.pre_ks):
                 knn_idx = get_knn_idx(self.pre_ks[i], xyz)
             else:
-                knn_idx = get_knn_idx(k=12, f=x, q=None, offset=None)
+                knn_idx = get_knn_idx(k=16, f=x, q=None, offset=None)
             idxes.append(knn_idx)
 
             x, _log_det_J = self.flow_assemblies[i](x, c=None, knn_idx=knn_idx)

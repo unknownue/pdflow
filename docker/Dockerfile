@@ -32,7 +32,8 @@ USER $DOCKER_USER
 
 # Packages -----------------------------------------------------------------
 RUN pip install --no-cache-dir --user pqi && pqi use aliyun
-RUN pip install --no-cache-dir --user pytorch_lightning==1.3.0
+RUN pip install --no-cache-dir --user pytorch_lightning==1.3.0 && \
+    pip install --user git+git://github.com/fwilliams/point-cloud-utils
 
 
 # CMD ["bash"]

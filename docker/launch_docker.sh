@@ -7,7 +7,8 @@ docker run -id --rm \
    --device /dev/nvidia-uvm \
    --device /dev/nvidia-uvm-tools \
    --device /dev/nvidiactl \
-   --gpus all --name expr-pdflow \
+   --gpus all \
+   --name expr-pdflow \
    -e NVIDIA_DRIVER_CAPABILITIES=graphics,display,compute,utility \
    -w /workspace \
    --shm-size 8G \
