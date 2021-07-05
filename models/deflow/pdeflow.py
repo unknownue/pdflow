@@ -4,6 +4,7 @@ import torch.nn as nn
 import numpy as np
 
 from torch import Tensor
+from torch.nn import functional as F
 from typing import List
 
 from modules.utils.distribution import GaussianDistribution
@@ -26,12 +27,6 @@ class FlowAssembly(nn.Module):
         channel2 = idim // 2
 
         self.actnorm = ActNorm(idim, dim=2)
-
-        # if id % 4 == 0:
-        #     self.permutate1 = Permutation('inv1x1', idim, dim=2)
-        #     # self.permutate1 = Permutation('random', idim, dim=2)
-        # else:
-        #     self.permutate1 = Permutation('reverse', idim, dim=2)
         self.permutate1 = Permutation('reverse', idim, dim=2)
 
         self.coupling1 = AffineCouplingLayer('affine', KnnConvUnit, split_dim=2, clamp=SoftClampling(),
@@ -60,15 +55,71 @@ class FlowAssembly(nn.Module):
 
 
 # -----------------------------------------------------------------------------------------
-class DenoiseFlow(nn.Module):
+class PointOutlierPooling(nn.Module):
+
+    def __init__(self, pc_channel, aug_channel, hchannel, percent):
+        super(PointOutlierPooling, self).__init__()
+
+        in_channel = pc_channel + aug_channel
+        self.outlier_percent = percent
+
+        self.linears = nn.Sequential(
+            nn.Linear(in_channel + pc_channel, hchannel),
+            nn.LeakyReLU(inplace=True),
+            nn.Linear(hchannel, hchannel),
+            nn.LeakyReLU(inplace=True),
+            nn.Linear(hchannel, 32),
+            nn.ReLU(inplace=True))
+        self.prob_linear = nn.Linear(32, 1)
+
+        self.displacement_mlp = nn.Sequential(
+            nn.Linear(in_channel, in_channel // 2),
+            nn.ReLU(inplace=True),
+            nn.Linear(in_channel // 2, in_channel // 4),
+            nn.ReLU(inplace=True),
+            nn.Linear(in_channel // 4, 3))
+
+    def forward(self, xyz: Tensor, f: Tensor):
+        """
+        xyz: [B, N, C1]
+        f  : [B, N, C2]
+        return: [B, N]
+        """
+        B, N, _ = xyz.shape
+        idxb = torch.arange(B).view(-1, 1)
+
+        x = torch.cat([f, xyz], dim=-1)
+        x = self.linears(x)  # [B, N, 32]
+
+        x = self.prob_linear(x) / torch.norm(self.prob_linear.weight, p='fro')
+
+        # f -> X, outlier_probs -> s, prob_idx -> i
+        outlier_probs = torch.squeeze(x, dim=-1)  # [B, N]
+        prob_idx = torch.argsort(outlier_probs, dim=-1, descending=True)  # [B, N]
+
+        num_outlier = int(N * self.outlier_percent)
+        clean_idx = prob_idx[:, num_outlier:]  # [B, N - _N]
+        y = outlier_probs[idxb, clean_idx]     # [B, N - _N]
+        y = torch.sigmoid(y)
+        px = f[idxb, clean_idx]
+        px = px * y.unsqueeze(-1).expand_as(px)
+
+        displacement = self.displacement_mlp(px)
+        est_xyz = xyz[idxb, clean_idx] + displacement # [B, N - _N, 3]
+        return prob_idx, est_xyz
+
+
+# -----------------------------------------------------------------------------------------
+class ExDenoiseFlow(nn.Module):
 
     def __init__(self, pc_channel=3):
-        super(DenoiseFlow, self).__init__()
+        super(ExDenoiseFlow, self).__init__()
 
         self.nflow_module = 12
         self.in_channel = pc_channel
         self.aug_channel = 20
-        self.cut_channel = 3
+        self.noise_channel = 3
+        self.outlier_channel = 6
 
         self.dist = GaussianDistribution()
 
@@ -81,6 +132,9 @@ class DenoiseFlow(nn.Module):
         ])
         self.argument = AugmentLayer(self.dist, self.aug_channel, shallow, augment_steps)
 
+        self.outlier_percent = 0.25
+        self.outlier_pooling = PointOutlierPooling(pc_channel, self.aug_channel, hchannel=64, percent=self.outlier_percent)
+
         # Flow Component
         self.pre_ks = [8, 16, 24]
         flow_assemblies = []
@@ -90,34 +144,13 @@ class DenoiseFlow(nn.Module):
             flow_assemblies.append(flow)
         self.flow_assemblies = nn.ModuleList(flow_assemblies)
 
-        # Channel Mask ----------------------------------
-        # Fix channel mask
-        self.channel_mask = nn.Parameter(torch.ones((1, 1, self.in_channel + self.aug_channel)), requires_grad=False)
-        self.channel_mask[:, -self.cut_channel:] = 0.0
-
-        # Random initialization (Works, but slow to convergence)
-        # w_init = np.random.randn(self.in_channel + self.aug_channel, self.in_channel + self.aug_channel)
-        # w_init = np.linalg.qr(w_init)[0].astype(np.float32)
-        # self.channel_mask = nn.Parameter(torch.from_numpy(w_init), requires_grad=True)
-
-        # Identity initialization
-        # w_init = torch.eye(self.in_channel + self.aug_channel)
-        # w_init[-self.cut_channel:] = 0.0
-        # w_init = w_init + torch.randn_like(w_init) * 0.05
-        # self.channel_mask = nn.Parameter(w_init, requires_grad=True)
-
-        # Learnable binary mask
-        # theta = torch.rand((1, 1, self.in_channel + self.aug_channel))
-        # self.theta = nn.Parameter(theta, requires_grad=True)
-        # -----------------------------------------------
-
     def f(self, x: Tensor, xyz: Tensor):
         log_det_J = torch.zeros((x.shape[0],), device=x.device)
         idxes = []
 
         for i in range(self.nflow_module):
             if i < len(self.pre_ks):
-                knn_idx = get_knn_idx(self.pre_ks[i], xyz)
+                knn_idx = get_knn_idx(k=self.pre_ks[i], f=xyz)
             else:
                 knn_idx = get_knn_idx(k=16, f=x, q=None, offset=None)
             idxes.append(knn_idx)
@@ -126,7 +159,10 @@ class DenoiseFlow(nn.Module):
             if _log_det_J is not None:
                 log_det_J += _log_det_J
 
-        return x, log_det_J, idxes
+            if i == 2:
+                prob_idx, est_xyz = self.outlier_pooling(xyz, x)
+
+        return x, est_xyz, log_det_J, idxes, prob_idx
 
     def g(self, z: Tensor, idxes: List[Tensor]):
         for i in reversed(range(self.nflow_module)):
@@ -138,44 +174,51 @@ class DenoiseFlow(nn.Module):
 
         y, aug_ldj = self.argument(xyz)
         x = torch.cat([xyz, y], dim=-1)  # [B, N, 3 + C]
-        z, flow_ldj, idxes = self.f(x, xyz)
+        z, est_xyz, flow_ldj, idxes, prob_idx = self.f(x, xyz)
         logpz = self.dist.log_prob(z)
 
         logp = logpz + flow_ldj - aug_ldj
-        logp = self.nll_loss(x.shape, logp)
-        return z, logp, idxes
+        logp = self.nll_loss(logp)
+        return z, est_xyz, logp, idxes, prob_idx
 
     def sample(self, z: Tensor, idxes: List[Tensor]):
         full_x = self.g(z, idxes)
         clean_x = full_x[..., :self.in_channel]  # [B, N, 3]
         return clean_x
 
-    def forward(self, x: Tensor):
-        z, ldj, idxes = self.log_prob(x)
-        mask = None
+    def forward(self, xyz: Tensor):
+        z, est_xyz, ldj, idxes, prob_idx = self.log_prob(xyz)
+
+        noise_z = self.mask_outlier(z, prob_idx)
+        clean_z = self.mask_noise(noise_z)
+        clean_x = self.sample(clean_z, idxes)
+        return clean_x, ldj, est_xyz
+
+    def nll_loss(self, sldj):
+        nll = -torch.mean(sldj)
+        return nll
+
+    def mask_noise(self, z: Tensor):
+        # Fix channel mask
+        z[:, :, -self.noise_channel:] = 0
+        return z
+
+    def mask_outlier(self, z: Tensor, prob_idx: Tensor):
+        """
+        z: [B, N, C]
+        probs: [B, N]
+        xyz: [B, N, 3]
+        """
+        B, N, _ = z.shape
+        idxb = torch.arange(B).view(-1, 1)
+        num_outlier = int(N * self.outlier_percent)
+
+        outlier_idx = prob_idx[:, :num_outlier]  # [B, _N]
 
         # Fix channel mask
-        z[:, :, -self.cut_channel:] = 0
-        clean_z = z
-        # Identity initialization
-        # clean_z = torch.einsum('ij,bnj->bni', self.channel_mask, z)
-        # Random initialization
-        # clean_z = z * self.channel_mask.expand_as(z)
-        # Learnable binary mask
-        # mask = torch.max(torch.zeros_like(self.theta), 1.0 - (-self.theta).exp())
-        # clean_z = z * mask
+        z[idxb, outlier_idx, -self.outlier_channel:] = 0
 
-        clean_x = self.sample(clean_z, idxes)
-        return clean_x, ldj, mask
-
-    def nll_loss(self, pts_shape, sldj):
-        #ll = sldj - np.log(self.k) * torch.prod(pts_shape[1:])
-        # ll = torch.nan_to_num(sldj, nan=1e3)
-        ll = sldj
-
-        nll = -torch.mean(ll)
-
-        return nll
+        return z
 
     def init_as_trained_state(self):
         """Set the network to initialized state, needed for evaluation(significant performance impact)"""

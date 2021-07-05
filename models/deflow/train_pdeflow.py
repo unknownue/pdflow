@@ -10,10 +10,9 @@ from torch import Tensor
 from argparse import ArgumentParser
 
 from dataset.dmrdenoise import DMRDenoiseDataModule
-from models.deflow.deflow import DenoiseFlow
-# from metric.loss import MaskLoss
+from models.deflow.pdeflow import ExDenoiseFlow
 from metric.loss import EarthMoverDistance as EMD
-# from metric.loss import ChamferDistance as CD
+from metric.loss import ChamferDistance as CD
 
 from modules.utils.callback import TimeTrainingCallback
 from modules.utils.lightning import LightningModule
@@ -26,9 +25,9 @@ class TrainerModule(LightningModule):
     def __init__(self, cfg):
         super(TrainerModule, self).__init__()
 
-        self.network = DenoiseFlow()
+        self.network = ExDenoiseFlow()
         self.loss_emd = EMD()
-        # self.mloss = MaskLoss()
+        self.loss_cd  = CD(dim=3)
 
         self.epoch = 0
         self.cfg = cfg
@@ -46,15 +45,16 @@ class TrainerModule(LightningModule):
         optimizer = torch.optim.Adam(self.network.parameters(), lr=self.cfg.learning_rate)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=self.cfg.sched_patience, factor=self.cfg.sched_factor, min_lr=self.cfg.min_lr)
         return { "optimizer": optimizer, 'scheduler': scheduler }
-    
+
     def training_step(self, batch, batch_idx):
 
         noise, noiseless = batch['pos'], batch['clean']
-        denoised, logpx, mask = self(noise)
+        denoised, logpx, noise_xyz = self(noise)
 
         emd = self.loss_emd(denoised, noiseless)
+        cd  = self.loss_cd(noise_xyz, noiseless)
         # lmask = self.mloss(mask)
-        loss = logpx * 1e-6 + emd * 1e-2
+        loss = logpx * 1e-6 + emd * 1e-2 + cd
 
         self.log('EMD', emd.detach().cpu().item() * 1e-2, on_step=True, on_epoch=False, prog_bar=True, logger=False)
         self.log('logpx', logpx * 1e-6, on_step=True, on_epoch=False, prog_bar=True, logger=False)
@@ -85,13 +85,13 @@ class TrainerModule(LightningModule):
 
         extra = []
         if self.epoch % 50 == 0:
-            save_path = f'runs/ckpt/DenoiseFlow-baseline-epoch{self.epoch}.ckpt'
+            save_path = f'runs/ckpt/ExDenoiseFlow-baseline-epoch{self.epoch}.ckpt'
             torch.save(self.network.state_dict(), save_path)
             extra.append(str(self.epoch))
         for key in keys:
             if log_dict[key] < self.min_noisy_v[key]:
                 self.min_noisy_v[key] = log_dict[key]
-                save_path = f'runs/ckpt/DenoiseFlow-baseline-min_{key}.ckpt'
+                save_path = f'runs/ckpt/ExDenoiseFlow-baseline-min_{key}.ckpt'
                 torch.save(self.network.state_dict(), save_path)
                 extra.append(key)
 
@@ -139,7 +139,7 @@ def dataset_specific_args():
 # -----------------------------------------------------------------------------------------
 def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
 
-    comment = 'nflow-12_aug-20-fix-mask-k16'
+    comment = 'nflow-12_aug-20-split_fix_mask-k16'
     cfg = model_specific_args().parse_args()
     pl.seed_everything(cfg.seed)
 
@@ -156,7 +156,7 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
         # 'amp_level'            : 'O1',
         'gradient_clip_val'    : 1e-3,
         'deterministic'        : False,
-        'num_sanity_val_steps' : 0,  # -1 or 0
+        'num_sanity_val_steps' : -1,  # -1 or 0
         'checkpoint_callback'  : False,
         'callbacks'            : [TimeTrainingCallback()],
         # 'profiler'             : "pytorch",
@@ -189,7 +189,7 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
 # -----------------------------------------------------------------------------------------
 if __name__ == "__main__":
 
-    checkpoint_path = 'runs/ckpt/DenoiseFlow-baseline'
+    checkpoint_path = 'runs/ckpt/ExDenoiseFlow-baseline'
 
     # train('Train', None, None)                      # Train from begining, and save nothing after finish
     train('Train', checkpoint_path, None)           # Train from begining, save network params after finish

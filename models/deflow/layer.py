@@ -17,9 +17,16 @@ def knn_group(x: Tensor, i: Tensor):
     """
     (B, N, C), (_, M, k) = x.shape, i.shape
 
+    # approach 1
     x = x.unsqueeze(1).expand(B, M, N, C)
     i = i.unsqueeze(3).expand(B, M, k, C)
     return torch.gather(x, dim=2, index=i)
+
+    # approach 2 (save some gpu memory)
+    # idxb = torch.arange(B).view(-1, 1)
+    # i = i.reshape(B, M * k)
+    # y = x[idxb, i].view(B, M, k, C)  # [B, M * k, C]
+    # return y
 
 # -----------------------------------------------------------------------------------------
 def get_knn_idx(k: int, f: Tensor, q: Tensor=None, offset=None, return_features=False):
@@ -38,7 +45,6 @@ def get_knn_idx(k: int, f: Tensor, q: Tensor=None, offset=None, return_features=
     _f = f.unsqueeze(1).expand(B, M, N, C)
     _q = q.unsqueeze(2).expand(B, M, N, C)
 
-    # TODO: Fix high memory issue
     dist = torch.sum((_f - _q) ** 2, dim=3, keepdim=False)  # [B, M, N]
     knn_idx = torch.argsort(dist, dim=2)[..., offset:k+offset]  # [B, M, k]
 
