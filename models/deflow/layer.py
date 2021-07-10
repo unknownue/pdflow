@@ -18,15 +18,15 @@ def knn_group(x: Tensor, i: Tensor):
     (B, N, C), (_, M, k) = x.shape, i.shape
 
     # approach 1
-    x = x.unsqueeze(1).expand(B, M, N, C)
-    i = i.unsqueeze(3).expand(B, M, k, C)
-    return torch.gather(x, dim=2, index=i)
+    # x = x.unsqueeze(1).expand(B, M, N, C)
+    # i = i.unsqueeze(3).expand(B, M, k, C)
+    # return torch.gather(x, dim=2, index=i)
 
     # approach 2 (save some gpu memory)
-    # idxb = torch.arange(B).view(-1, 1)
-    # i = i.reshape(B, M * k)
-    # y = x[idxb, i].view(B, M, k, C)  # [B, M * k, C]
-    # return y
+    idxb = torch.arange(B).view(-1, 1)
+    i = i.reshape(B, M * k)
+    y = x[idxb, i].view(B, M, k, C)  # [B, M * k, C]
+    return y
 
 # -----------------------------------------------------------------------------------------
 def get_knn_idx(k: int, f: Tensor, q: Tensor=None, offset=None, return_features=False):
@@ -88,6 +88,42 @@ class KnnConvUnit(nn.Module):
         x, _ = torch.max(x, dim=2, keepdim=False)  # [B, N, h]
         x = self.linear3(x)   # [B, N, out]
 
+        return x
+
+
+# -----------------------------------------------------------------------------------------
+class LinearUnit(nn.Module):
+
+    def __init__(self, in_channel, hidden_channel, out_channel, n_block=3, batch_norm=False):
+        super(LinearUnit, self).__init__()
+
+        layers = []
+        for _ in range(n_block):
+            linear   = nn.Conv1d(in_channel, hidden_channel, kernel_size=1)
+            activate = nn.ReLU(inplace=True)
+
+            if batch_norm is None:
+                batchnorm = nn.BatchNorm1d(hidden_channel)
+                layers.extend([linear, activate, batchnorm])
+            else:
+                layers.extend([linear, activate])
+            in_channel = hidden_channel
+
+        out_conv = nn.Conv1d(hidden_channel, out_channel, kernel_size=1)
+        nn.init.normal_(out_conv.weight, mean=0.0, std=0.05)
+        nn.init.zeros_(out_conv.bias)
+        layers.append(out_conv)
+
+        self.linears = nn.Sequential(*layers)
+
+    def forward(self, f: Tensor, _c=None, knn_idx=None):
+        """
+        f: [B, N, C]
+        """
+        _f = torch.transpose(f, 1, 2)
+        _x = self.linears(_f)
+        x = torch.transpose(_x, 1, 2)
+        # return x + f
         return x
 
 

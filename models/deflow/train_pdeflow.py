@@ -43,8 +43,13 @@ class TrainerModule(LightningModule):
     
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.network.parameters(), lr=self.cfg.learning_rate)
+
+        # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[0, 100, 140], gamma=0.2)
+        # return { 'optimizer': optimizer, 'lr_scheduler': scheduler }
+
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=self.cfg.sched_patience, factor=self.cfg.sched_factor, min_lr=self.cfg.min_lr)
-        return { "optimizer": optimizer, 'scheduler': scheduler }
+        return { 'optimizer': optimizer, 'lr_scheduler': { 'scheduler': scheduler, 'monitor': 'EMD' } }
+        # return optimizer
 
     def training_step(self, batch, batch_idx):
 
@@ -76,12 +81,16 @@ class TrainerModule(LightningModule):
 
     def validation_epoch_end(self, batch):
         log_dict = {}
+
         keys = batch[0].keys()
 
         for key in keys:
             batch_size = 8
             n = len(batch) * batch_size
             log_dict[key] = torch.tensor([x[key] for x in batch]).sum().detach().cpu() / n
+
+        # val_loss = log_dict['noisy_0.01'] / 0.2 + log_dict['noisy_0.03'] / 0.35 + log_dict['noisy_0.08'] / 2.0
+        # self.log('val_loss', val_loss, prog_bar=False, logger=False)
 
         extra = []
         if self.epoch % 50 == 0:
@@ -97,6 +106,7 @@ class TrainerModule(LightningModule):
 
         print_progress_log(self.epoch, log_dict, extra=extra)
         self.epoch += 1
+
 
 
 # -----------------------------------------------------------------------------------------
@@ -150,9 +160,9 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
         'default_root_dir'     : './runs/',
         'gpus'                 : 1,  # Set this to None for CPU training
         'fast_dev_run'         : False,
-        'max_epochs'           : 1, # cfg.max_epoch,
+        'max_epochs'           : 20, # cfg.max_epoch,
         'weights_summary'      : 'top',  # 'top', 'full' or None
-        'precision'            : 16,   # 16
+        'precision'            : 16 if phase == 'Train' else 32,   # 16
         # 'amp_level'            : 'O1',
         'gradient_clip_val'    : 1e-3,
         'deterministic'        : False,
@@ -171,7 +181,9 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
         if comment is not None:
             print(f'\nComment: \033[1m{comment}\033[0m')
         if begin_checkpoint is not None:
-            module.network = torch.load(begin_checkpoint, map_location='cpu')
+            state_dict = torch.load(begin_checkpoint)
+            module.network.load_state_dict(state_dict)
+            module.network.init_as_trained_state()
 
         trainer.fit(model=module, datamodule=datamodule)
 
@@ -180,9 +192,11 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
                 save_path = checkpoint_path + f'-epoch{trainer_config["max_epochs"]}.ckpt'
                 torch.save(module.network.state_dict(), save_path)
                 print(f'Model has been save to \033[1m{save_path}\033[0m')
-    else:  # Test
-        module.network = torch.load(checkpoint_path, map_location='cpu')
-        trainer.test(model=module, datamodule=datamodule)
+    else:  # Validate
+        state_dict = torch.load(begin_checkpoint)
+        module.network.load_state_dict(state_dict)
+        module.network.init_as_trained_state()
+        trainer.validate(model=module, datamodule=datamodule)
 
 
 
@@ -190,8 +204,9 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
 if __name__ == "__main__":
 
     checkpoint_path = 'runs/ckpt/ExDenoiseFlow-baseline'
+    previous_path = 'runs/ckpt/ExDenoiseFlow-baseline-epoch150.ckpt'
 
     # train('Train', None, None)                      # Train from begining, and save nothing after finish
     train('Train', checkpoint_path, None)           # Train from begining, save network params after finish
     # train('Train', checkpoint_path, previous_path)  # Train from previous checkpoint, save network params after finish
-    # train('Test', checkpoint_path, None)            # Test with given checkpoint
+    # train('Validate', None, previous_path)          # Validate with given checkpoint

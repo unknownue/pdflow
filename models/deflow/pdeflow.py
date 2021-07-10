@@ -14,7 +14,7 @@ from modules.normalize import ActNorm
 from modules.permutate import Permutation
 from modules.coupling import AffineCouplingLayer
 
-from models.deflow.layer import KnnConvUnit, AugmentShallow, get_knn_idx
+from models.deflow.layer import KnnConvUnit, LinearUnit, AugmentShallow, get_knn_idx
 
 
 # -----------------------------------------------------------------------------------------
@@ -28,9 +28,21 @@ class FlowAssembly(nn.Module):
 
         self.actnorm = ActNorm(idim, dim=2)
         self.permutate1 = Permutation('reverse', idim, dim=2)
+        self.permutate2 = Permutation('reverse', idim, dim=2)
 
-        self.coupling1 = AffineCouplingLayer('affine', KnnConvUnit, split_dim=2, clamp=SoftClampling(),
-            params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, })
+        # if id < 3:
+        #     self.coupling1 = AffineCouplingLayer('affine', KnnConvUnit, split_dim=2, clamp=SoftClampling(),
+        #         params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, })
+        #     self.coupling2 = AffineCouplingLayer('affine', KnnConvUnit, split_dim=2, clamp=SoftClampling(),
+        #         params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, })
+        # else:
+        #     self.coupling1 = AffineCouplingLayer('affine', LinearUnit, split_dim=2, clamp=None,
+        #         params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, 'batch_norm': True })
+        #     self.coupling2 = AffineCouplingLayer('affine', LinearUnit, split_dim=2, clamp=None,
+        #         params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, 'batch_norm': True })
+
+        self.coupling1 = AffineCouplingLayer('affine', LinearUnit, split_dim=2, clamp=SoftClampling(),
+            params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, 'batch_norm': True })
         self.coupling2 = AffineCouplingLayer('affine', KnnConvUnit, split_dim=2, clamp=SoftClampling(),
             params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, })
 
@@ -38,15 +50,17 @@ class FlowAssembly(nn.Module):
         x, _log_det2 = self.permutate1(x, c)
         x, _log_det0 = self.actnorm(x)
         x, _log_det1 = self.coupling1(x, c, knn_idx=knn_idx)
+        x, _log_det4 = self.permutate2(x, c)
         x, _log_det3 = self.coupling2(x, c, knn_idx=knn_idx)
 
         if _log_det2 is not None:
-            return x, _log_det0 + _log_det1 + _log_det2 + _log_det3
+            return x, _log_det0 + _log_det1 + _log_det2 + _log_det3 + _log_det4
         else:
             return x, _log_det0 + _log_det1 + _log_det3
 
     def inverse(self, z: Tensor, c: Tensor=None, knn_idx=None):
         z = self.coupling2.inverse(z, c, knn_idx=knn_idx)
+        z = self.permutate2.inverse(z, c)
         z = self.coupling1.inverse(z, c, knn_idx=knn_idx)
         z = self.actnorm.inverse(z)
         z = self.permutate1.inverse(z, c)
@@ -117,7 +131,7 @@ class ExDenoiseFlow(nn.Module):
 
         self.nflow_module = 12
         self.in_channel = pc_channel
-        self.aug_channel = 20
+        self.aug_channel = 21
         self.noise_channel = 3
         self.outlier_channel = 6
 
@@ -126,9 +140,9 @@ class ExDenoiseFlow(nn.Module):
         # Augment Component
         shallow = AugmentShallow(pc_channel, hidden_channel=32, out_channel=64, num_convs=2)
         augment_steps = nn.ModuleList([
-            AugmentStep(self.aug_channel, hidden_channel=64),
-            AugmentStep(self.aug_channel, hidden_channel=64),
-            AugmentStep(self.aug_channel, hidden_channel=64),
+            AugmentStep(self.aug_channel, hidden_channel=64, reverse=False),
+            AugmentStep(self.aug_channel, hidden_channel=64, reverse=True),
+            AugmentStep(self.aug_channel, hidden_channel=64, reverse=False),
         ])
         self.argument = AugmentLayer(self.dist, self.aug_channel, shallow, augment_steps)
 
@@ -153,6 +167,7 @@ class ExDenoiseFlow(nn.Module):
                 knn_idx = get_knn_idx(k=self.pre_ks[i], f=xyz)
             else:
                 knn_idx = get_knn_idx(k=16, f=x, q=None, offset=None)
+                # knn_idx = None
             idxes.append(knn_idx)
 
             x, _log_det_J = self.flow_assemblies[i](x, c=None, knn_idx=knn_idx)

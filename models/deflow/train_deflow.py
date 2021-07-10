@@ -150,9 +150,9 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
         'default_root_dir'     : './runs/',
         'gpus'                 : 1,  # Set this to None for CPU training
         'fast_dev_run'         : False,
-        'max_epochs'           : 1, # cfg.max_epoch,
+        'max_epochs'           : 200, # cfg.max_epoch,
         'weights_summary'      : 'top',  # 'top', 'full' or None
-        'precision'            : 16,   # 16
+        'precision'            : 32,   # 16
         # 'amp_level'            : 'O1',
         'gradient_clip_val'    : 1e-3,
         'deterministic'        : False,
