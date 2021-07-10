@@ -16,7 +16,9 @@ from tqdm import tqdm
 
 from modules.utils.fps import normalize_point_cloud_numpy
 from models.deflow.deflow import DenoiseFlow
+# from models.deflow.pdeflow import ExDenoiseFlow
 from modules.utils.modules import BatchIdxIter
+from eval.fps_points import fps_numpy
 
 from sklearn.cluster import KMeans
 from sklearn.neighbors import kneighbors_graph
@@ -144,6 +146,8 @@ def auto_denoise_file(args, ipath, opath, network=None):
     else:
         assert False, "Our pretrained model does not support point clouds with less than 10K points"
     
+    if args.limit_num_point is not None:
+        denoised = fps_numpy(denoised, K=args.limit_num_point)
     np.savetxt(opath, denoised, fmt='%.6f')
 
 
@@ -168,6 +172,7 @@ if __name__ == '__main__':
     parser.add_argument('--expand_knn', type=int, default=16)
     parser.add_argument('--cluster_size', type=int, default=30000, help='Number of clusters for large point clouds')
     parser.add_argument('--num_splicts', type=int, default=2, help='Number of splits for middle-sized point clouds')
+    parser.add_argument('--limit_num_point', type=int, default=None, help='Target number of output points downsampled by fps(if not set, do not employ downsample)')
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--verbose', action='store_true')
     args = parser.parse_args()
