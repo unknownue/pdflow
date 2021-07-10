@@ -66,20 +66,29 @@ class AugmentLayer(nn.Module):
 # -----------------------------------------------------------------------------------------
 class AugmentStep(nn.Module):
 
-    def __init__(self, channel, hidden_channel):
+    def __init__(self, channel, hidden_channel, reverse=False):
         super(AugmentStep, self).__init__()
 
-        self.norm   = ActNorm(channel)
-        self.inv1x1 = InvertibleConv1x1_1D(channel, dim=1)
+        # self.norm   = ActNorm(channel)
+        # self.inv1x1 = InvertibleConv1x1_1D(channel, dim=1)
+        self.is_reverse = reverse
 
-        self.conv_in = nn.Conv1d(channel // 2, hidden_channel, kernel_size=1)
+        if reverse:
+            in_channel = channel - channel // 2
+        else:
+            in_channel = channel // 2
+
+        self.conv_in = nn.Conv1d(in_channel, hidden_channel, kernel_size=1)
         self.gated_conv = GatedConv1D(hidden_channel)
         # self.layer_norm = nn.LayerNorm([hidden_channel, N])
         self.layer_norm = nn.BatchNorm1d(hidden_channel)
-        self.conv_out = Conv1DZeros(hidden_channel, channel)
+        self.conv_out = Conv1DZeros(hidden_channel, (channel - in_channel) * 2)
 
     def forward(self, x: Tensor, a: Tensor):
-        x1, x2 = torch.chunk(x, chunks=2, dim=1)
+        if self.is_reverse:
+            x2, x1 = torch.chunk(x, chunks=2, dim=1)
+        else:
+            x1, x2 = torch.chunk(x, chunks=2, dim=1)
 
         st = self.conv_in(x2)
         st = self.gated_conv(st, a)
@@ -90,7 +99,11 @@ class AugmentStep(nn.Module):
 
         x1 = (x1 + shift) * scale
         ldj = torch.sum(torch.log(scale).flatten(start_dim=1), dim=-1)
-        x = torch.cat([x1, x2], dim=1)
+
+        if self.is_reverse:
+            x = torch.cat([x2, x1], dim=1)
+        else:
+            x = torch.cat([x1, x2], dim=1)
         return x, ldj
 
     def inverse(self, x: Tensor, a: Tensor):
