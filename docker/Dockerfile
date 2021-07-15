@@ -27,7 +27,9 @@ RUN apt update && \
 RUN adduser --disabled-password --gecos '' $DOCKER_USER && \
     adduser $DOCKER_USER sudo && \
     echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers && \
-    echo "[core]editor=nvim" >> ~/.gitconfig
+    echo "[core]editor=nvim" >> ~/.gitconfig && \
+    git config --global user.email unknownue@outlook.com && \
+    git config --global user.name unknownue
 USER $DOCKER_USER
 
 # Packages -----------------------------------------------------------------
