@@ -26,7 +26,7 @@ class FlowAssembly(nn.Module):
         channel2 = idim // 2
 
         self.actnorm = ActNorm(idim, dim=2)
-        self.permutate1 = Permutation('reverse', idim, dim=2)
+        self.permutate1 = Permutation('inv1x1', idim, dim=2)
         self.permutate2 = Permutation('reverse', idim, dim=2)
 
         if id < 3 or id % 3 == 0:
@@ -47,10 +47,7 @@ class FlowAssembly(nn.Module):
         x, _log_det4 = self.permutate2(x, c)
         x, _log_det3 = self.coupling2(x, c, knn_idx=knn_idx)
 
-        if _log_det2 is not None:
-            return x, _log_det0 + _log_det1 + _log_det2 + _log_det3 + _log_det4
-        else:
-            return x, _log_det0 + _log_det1 + _log_det3
+        return x, _log_det0 + _log_det1 + _log_det2 + _log_det3
 
     def inverse(self, z: Tensor, c: Tensor=None, knn_idx=None):
         z = self.coupling2.inverse(z, c, knn_idx=knn_idx)
@@ -120,11 +117,10 @@ class DenoiseFlow(nn.Module):
 
         for i in range(self.nflow_module):
             if i < len(self.pre_ks):
-                knn_idx = get_knn_idx(self.pre_ks[i], xyz)
+                knn_idx = get_knn_idx(k=self.pre_ks[i], f=xyz, q=None)
             elif i % 3 == 0:
-                knn_idx = get_knn_idx(k=16, f=x, q=None, offset=None)
+                knn_idx = get_knn_idx(k=16, f=x, q=None)
             else:
-                # knn_idx = get_knn_idx(k=16, f=x, q=None, offset=None)
                 knn_idx = None
             idxes.append(knn_idx)
 

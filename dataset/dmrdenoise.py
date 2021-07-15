@@ -32,7 +32,7 @@ class DMRDenoiseDataset(Dataset):
         self.transform = transform
         self.batch_size = batch_size
         self.random_get = random_get
-        self.subset_size = subset_size
+        self.subset_size = None if subset_size == -1 else subset_size
  
     def __len__(self):
         if self.subset_size is not None:

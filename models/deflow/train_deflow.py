@@ -119,8 +119,8 @@ def model_specific_args():
 def dataset_specific_args():
     parser = ArgumentParser()
 
-    parser.add_argument('--noise_low', default=0.02, type=float)
-    parser.add_argument('--noise_high', default=0.06, type=float, help='-1 for fixed noise level')
+    parser.add_argument('--noise_low', default=0.04, type=float)  # 0.02
+    parser.add_argument('--noise_high', default=0.08, type=float, help='-1 for fixed noise level')  # 0.06
     parser.add_argument('--aug_scale', action='store_true', help='Enable scaling augmentation.')
     parser.add_argument('--datasets', type=list, default=[
         'data/DMRDenoise/dataset_train/patches_20k_1024.h5',
@@ -139,7 +139,7 @@ def dataset_specific_args():
 # -----------------------------------------------------------------------------------------
 def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
 
-    comment = 'nflow-12_aug-20-fix-mask-k16'
+    comment = 'light_nflow-12_aug-20-fix-mask-k16-inv1x1'
     cfg = model_specific_args().parse_args()
     pl.seed_everything(cfg.seed)
 
@@ -150,13 +150,13 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
         'default_root_dir'     : './runs/',
         'gpus'                 : 1,  # Set this to None for CPU training
         'fast_dev_run'         : False,
-        'max_epochs'           : 200, # cfg.max_epoch,
+        'max_epochs'           : 150, # cfg.max_epoch,
         'weights_summary'      : 'top',  # 'top', 'full' or None
         'precision'            : 32,   # 16
         # 'amp_level'            : 'O1',
         'gradient_clip_val'    : 1e-3,
         'deterministic'        : False,
-        'num_sanity_val_steps' : 0,  # -1 or 0
+        'num_sanity_val_steps' : -1,  # -1 or 0
         'checkpoint_callback'  : False,
         'callbacks'            : [TimeTrainingCallback()],
         # 'profiler'             : "pytorch",

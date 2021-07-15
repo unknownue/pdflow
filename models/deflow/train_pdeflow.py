@@ -93,7 +93,7 @@ class TrainerModule(LightningModule):
         # self.log('val_loss', val_loss, prog_bar=False, logger=False)
 
         extra = []
-        if self.epoch % 50 == 0:
+        if self.epoch % 10 == 0:
             save_path = f'runs/ckpt/ExDenoiseFlow-baseline-epoch{self.epoch}.ckpt'
             torch.save(self.network.state_dict(), save_path)
             extra.append(str(self.epoch))
@@ -139,7 +139,7 @@ def dataset_specific_args():
         'data/DMRDenoise/dataset_train/patches_50k_1024.h5',
         'data/DMRDenoise/dataset_train/patches_80k_1024.h5',
     ])
-    parser.add_argument('--subset_size', default=7000, type=int, help='-1 for unlimited')
+    parser.add_argument('--subset_size', default=-1, type=int, help='-1 for unlimited')  # 7000
     parser.add_argument('--batch_size', default=8, type=int)
     parser.add_argument('--num_workers', default=4, type=int)
 
@@ -160,9 +160,9 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
         'default_root_dir'     : './runs/',
         'gpus'                 : 1,  # Set this to None for CPU training
         'fast_dev_run'         : False,
-        'max_epochs'           : 20, # cfg.max_epoch,
+        'max_epochs'           : 50, # cfg.max_epoch,
         'weights_summary'      : 'top',  # 'top', 'full' or None
-        'precision'            : 16 if phase == 'Train' else 32,   # 16
+        'precision'            : 32,  # 16
         # 'amp_level'            : 'O1',
         'gradient_clip_val'    : 1e-3,
         'deterministic'        : False,
@@ -204,7 +204,7 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
 if __name__ == "__main__":
 
     checkpoint_path = 'runs/ckpt/ExDenoiseFlow-baseline'
-    previous_path = 'runs/ckpt/ExDenoiseFlow-baseline-epoch150.ckpt'
+    # previous_path = 'runs/ckpt/ExDenoiseFlow-baseline-epoch150.ckpt'
 
     # train('Train', None, None)                      # Train from begining, and save nothing after finish
     train('Train', checkpoint_path, None)           # Train from begining, save network params after finish

@@ -30,21 +30,16 @@ class FlowAssembly(nn.Module):
         self.permutate1 = Permutation('reverse', idim, dim=2)
         self.permutate2 = Permutation('reverse', idim, dim=2)
 
-        # if id < 3:
-        #     self.coupling1 = AffineCouplingLayer('affine', KnnConvUnit, split_dim=2, clamp=SoftClampling(),
-        #         params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, })
-        #     self.coupling2 = AffineCouplingLayer('affine', KnnConvUnit, split_dim=2, clamp=SoftClampling(),
-        #         params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, })
-        # else:
-        #     self.coupling1 = AffineCouplingLayer('affine', LinearUnit, split_dim=2, clamp=None,
-        #         params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, 'batch_norm': True })
-        #     self.coupling2 = AffineCouplingLayer('affine', LinearUnit, split_dim=2, clamp=None,
-        #         params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, 'batch_norm': True })
-
-        self.coupling1 = AffineCouplingLayer('affine', LinearUnit, split_dim=2, clamp=SoftClampling(),
-            params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, 'batch_norm': True })
-        self.coupling2 = AffineCouplingLayer('affine', KnnConvUnit, split_dim=2, clamp=SoftClampling(),
-            params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, })
+        if id < 3 or id % 3 == 0:
+            self.coupling1 = AffineCouplingLayer('affine', KnnConvUnit, split_dim=2, clamp=SoftClampling(),
+                params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, })
+            self.coupling2 = AffineCouplingLayer('affine', KnnConvUnit, split_dim=2, clamp=SoftClampling(),
+                params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, })
+        else:
+            self.coupling1 = AffineCouplingLayer('affine', LinearUnit, split_dim=2, clamp=SoftClampling(),
+                params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, 'batch_norm': True })
+            self.coupling2 = AffineCouplingLayer('affine', LinearUnit, split_dim=2, clamp=SoftClampling(),
+                params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, 'batch_norm': True })
 
     def forward(self, x: Tensor, c: Tensor=None, knn_idx=None):
         x, _log_det2 = self.permutate1(x, c)
@@ -164,10 +159,11 @@ class ExDenoiseFlow(nn.Module):
 
         for i in range(self.nflow_module):
             if i < len(self.pre_ks):
-                knn_idx = get_knn_idx(k=self.pre_ks[i], f=xyz)
+                knn_idx = get_knn_idx(k=self.pre_ks[i], f=xyz, q=None)
+            elif i % 3 == 0:
+                knn_idx = get_knn_idx(k=16, f=x, q=None)
             else:
-                knn_idx = get_knn_idx(k=16, f=x, q=None, offset=None)
-                # knn_idx = None
+                knn_idx = None
             idxes.append(knn_idx)
 
             x, _log_det_J = self.flow_assemblies[i](x, c=None, knn_idx=knn_idx)
