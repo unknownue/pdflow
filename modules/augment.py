@@ -5,8 +5,8 @@ from torch import nn, Tensor
 from torch.nn import functional as F
 
 from modules.utils.distribution import Distribution
-from modules.normalize import ActNorm
-from modules.permutate import InvertibleConv1x1_1D
+# from modules.normalize import ActNorm
+# from modules.permutate import InvertibleConv1x1_1D
 from modules.linear import GatedConv1D
 from modules.linear import Conv1DZeros
 
@@ -56,7 +56,7 @@ class AugmentLayer(nn.Module):
         for i in range(self.n_steps):
             y, log_det_J = self.steps[i](y, a)
             ldj += log_det_J
-        
+
         y, log_det_J = self.sigmoid(y)
         ldj += log_det_J
 

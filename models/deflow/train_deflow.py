@@ -44,9 +44,13 @@ class TrainerModule(LightningModule):
     
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.network.parameters(), lr=self.cfg.learning_rate)
+
+        # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=self.cfg.sched_patience, factor=self.cfg.sched_factor, min_lr=self.cfg.min_lr)
+        # return { 'optimizer': optimizer, 'lr_scheduler': { 'scheduler': scheduler, 'monitor': 'EMD' } }
+
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=self.cfg.sched_patience, factor=self.cfg.sched_factor, min_lr=self.cfg.min_lr)
         return { "optimizer": optimizer, 'scheduler': scheduler }
-    
+
     def training_step(self, batch, batch_idx):
 
         noise, noiseless = batch['pos'], batch['clean']
@@ -84,7 +88,7 @@ class TrainerModule(LightningModule):
             log_dict[key] = torch.tensor([x[key] for x in batch]).sum().detach().cpu() / n
 
         extra = []
-        if self.epoch % 50 == 0:
+        if self.epoch % 10 == 0:
             save_path = f'runs/ckpt/DenoiseFlow-baseline-epoch{self.epoch}.ckpt'
             torch.save(self.network.state_dict(), save_path)
             extra.append(str(self.epoch))
@@ -119,8 +123,10 @@ def model_specific_args():
 def dataset_specific_args():
     parser = ArgumentParser()
 
-    parser.add_argument('--noise_low', default=0.04, type=float)  # 0.02
-    parser.add_argument('--noise_high', default=0.08, type=float, help='-1 for fixed noise level')  # 0.06
+    parser.add_argument('--noise_low1', default=0.04, type=float)  # 0.04
+    parser.add_argument('--noise_high1', default=0.08, type=float, help='-1 for fixed noise level')  # 0.08
+    parser.add_argument('--noise_low2', default=0.02, type=float)  # 0.02
+    parser.add_argument('--noise_high2', default=0.06, type=float, help='-1 for fixed noise level')  # 0.06
     parser.add_argument('--aug_scale', action='store_true', help='Enable scaling augmentation.')
     parser.add_argument('--datasets', type=list, default=[
         'data/DMRDenoise/dataset_train/patches_20k_1024.h5',
@@ -129,7 +135,7 @@ def dataset_specific_args():
         'data/DMRDenoise/dataset_train/patches_50k_1024.h5',
         'data/DMRDenoise/dataset_train/patches_80k_1024.h5',
     ])
-    parser.add_argument('--subset_size', default=7000, type=int, help='-1 for unlimited')
+    parser.add_argument('--subset_size', default=-1, type=int, help='-1 for unlimited')  # 7000
     parser.add_argument('--batch_size', default=8, type=int)
     parser.add_argument('--num_workers', default=4, type=int)
 
@@ -139,7 +145,7 @@ def dataset_specific_args():
 # -----------------------------------------------------------------------------------------
 def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
 
-    comment = 'light_nflow-12_aug-20-fix-mask-k16-inv1x1'
+    comment = 'light_nflow-12_aug-20-fix-mask-k16-inv1x1_noise-multi'
     cfg = model_specific_args().parse_args()
     pl.seed_everything(cfg.seed)
 
@@ -150,7 +156,7 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
         'default_root_dir'     : './runs/',
         'gpus'                 : 1,  # Set this to None for CPU training
         'fast_dev_run'         : False,
-        'max_epochs'           : 150, # cfg.max_epoch,
+        'max_epochs'           : 50, # cfg.max_epoch,
         'weights_summary'      : 'top',  # 'top', 'full' or None
         'precision'            : 32,   # 16
         # 'amp_level'            : 'O1',
@@ -171,7 +177,9 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
         if comment is not None:
             print(f'\nComment: \033[1m{comment}\033[0m')
         if begin_checkpoint is not None:
-            module.network = torch.load(begin_checkpoint, map_location='cpu')
+            state_dict = torch.load(begin_checkpoint)
+            module.network.load_state_dict(state_dict)
+            module.network.init_as_trained_state()
 
         trainer.fit(model=module, datamodule=datamodule)
 
@@ -181,7 +189,9 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
                 torch.save(module.network.state_dict(), save_path)
                 print(f'Model has been save to \033[1m{save_path}\033[0m')
     else:  # Test
-        module.network = torch.load(checkpoint_path, map_location='cpu')
+        state_dict = torch.load(begin_checkpoint)
+        module.network.load_state_dict(state_dict)
+        module.network.init_as_trained_state()
         trainer.test(model=module, datamodule=datamodule)
 
 

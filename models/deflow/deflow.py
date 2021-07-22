@@ -67,17 +67,17 @@ class DenoiseFlow(nn.Module):
 
         self.nflow_module = 12
         self.in_channel = pc_channel
-        self.aug_channel = 20
-        self.cut_channel = 3
+        self.aug_channel = 20  # 20
+        self.cut_channel = 3   # 3
 
         self.dist = GaussianDistribution()
 
         # Augment Component
         shallow = AugmentShallow(pc_channel, hidden_channel=32, out_channel=64, num_convs=2)
         augment_steps = nn.ModuleList([
-            AugmentStep(self.aug_channel, hidden_channel=64),
-            AugmentStep(self.aug_channel, hidden_channel=64),
-            AugmentStep(self.aug_channel, hidden_channel=64),
+            AugmentStep(self.aug_channel, hidden_channel=64, reverse=False),
+            AugmentStep(self.aug_channel, hidden_channel=64, reverse=True),
+            AugmentStep(self.aug_channel, hidden_channel=64, reverse=False),
         ])
         self.argument = AugmentLayer(self.dist, self.aug_channel, shallow, augment_steps)
 
@@ -166,6 +166,8 @@ class DenoiseFlow(nn.Module):
         # Learnable binary mask
         # mask = torch.max(torch.zeros_like(self.theta), 1.0 - (-self.theta).exp())
         # clean_z = z * mask
+
+        # TODO: transform clean point to latent code and compare mask loss
 
         clean_x = self.sample(clean_z, idxes)
         return clean_x, ldj, mask

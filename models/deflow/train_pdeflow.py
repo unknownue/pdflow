@@ -130,7 +130,7 @@ def dataset_specific_args():
     parser = ArgumentParser()
 
     parser.add_argument('--noise_low', default=0.02, type=float)
-    parser.add_argument('--noise_high', default=0.06, type=float, help='-1 for fixed noise level')
+    parser.add_argument('--noise_high', default=0.08, type=float, help='-1 for fixed noise level')
     parser.add_argument('--aug_scale', action='store_true', help='Enable scaling augmentation.')
     parser.add_argument('--datasets', type=list, default=[
         'data/DMRDenoise/dataset_train/patches_20k_1024.h5',
