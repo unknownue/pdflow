@@ -3,6 +3,7 @@
 data/
 runs/
 scripts/
+models/publish/
 
 
 # Created by https://www.toptal.com/developers/gitignore/api/python

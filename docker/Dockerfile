@@ -19,6 +19,7 @@ ADD mirror-ubuntu2004.txt /etc/apt/sources.list
 RUN apt update && \
     apt install -y --no-install-recommends sudo && \
     apt install -y --no-install-recommends neovim && \
+    # apt install -y xorg-dev libglu1 && \
     rm -rf /var/lib/apt/lists/*
 
 
@@ -36,6 +37,14 @@ USER $DOCKER_USER
 RUN pip install --no-cache-dir --user pqi && pqi use aliyun
 RUN pip install --no-cache-dir --user pytorch_lightning==1.3.8 && \
     pip install --user git+git://github.com/fwilliams/point-cloud-utils
+
+# For render figures
+# RUN conda create -n blender_render python=3.7 && \
+#     wget "https://download.blender.org/release/Blender2.79/blender-2.79b-linux-glibc219-x86_64.tar.bz2" && \
+#     tar jxvf blender-2.79b-linux-glibc219-x86_64.tar.bz2 && \
+#     wegt https://github.com/TylerGubala/blenderpy/releases/download/v2.91a0/bpy-2.91a0-cp37-cp37m-manylinux2014_x86_64.whl && \
+#     pip install bpy-2.91a0-cp37-cp37m-manylinux2014_x86_64.whl && bpy_post_install
+# conda activate blender_render
 
 
 # CMD ["bash"]
