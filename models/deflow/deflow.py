@@ -92,8 +92,8 @@ class DenoiseFlow(nn.Module):
 
         # Channel Mask ----------------------------------
         # Fix channel mask
-        self.channel_mask = nn.Parameter(torch.ones((1, 1, self.in_channel + self.aug_channel)), requires_grad=False)
-        self.channel_mask[:, -self.cut_channel:] = 0.0
+        # self.channel_mask = nn.Parameter(torch.ones((1, 1, self.in_channel + self.aug_channel)), requires_grad=False)
+        # self.channel_mask[:, :, -self.cut_channel:] = 0.0
 
         # Random initialization (Works, but slow to convergence)
         # w_init = np.random.randn(self.in_channel + self.aug_channel, self.in_channel + self.aug_channel)
@@ -107,8 +107,8 @@ class DenoiseFlow(nn.Module):
         # self.channel_mask = nn.Parameter(w_init, requires_grad=True)
 
         # Learnable binary mask
-        # theta = torch.rand((1, 1, self.in_channel + self.aug_channel))
-        # self.theta = nn.Parameter(theta, requires_grad=True)
+        theta = torch.rand((1, 1, self.in_channel + self.aug_channel))
+        self.theta = nn.Parameter(theta, requires_grad=True)
         # -----------------------------------------------
 
     def f(self, x: Tensor, xyz: Tensor):
@@ -154,18 +154,19 @@ class DenoiseFlow(nn.Module):
 
     def forward(self, x: Tensor):
         z, ldj, idxes = self.log_prob(x)
-        mask = None
 
         # Fix channel mask
-        z[:, :, -self.cut_channel:] = 0
-        clean_z = z
+        # z[:, :, -self.cut_channel:] = 0
+        # clean_z = z
+        # Fix channel mask
+        # clean_z = z * self.channel_mask
         # Identity initialization
         # clean_z = torch.einsum('ij,bnj->bni', self.channel_mask, z)
         # Random initialization
         # clean_z = z * self.channel_mask.expand_as(z)
         # Learnable binary mask
-        # mask = torch.max(torch.zeros_like(self.theta), 1.0 - (-self.theta).exp())
-        # clean_z = z * mask
+        mask = torch.max(torch.zeros_like(self.theta), 1.0 - (-self.theta).exp())
+        clean_z = z * mask
 
         # TODO: transform clean point to latent code and compare mask loss
 
@@ -180,6 +181,10 @@ class DenoiseFlow(nn.Module):
         nll = -torch.mean(ll)
 
         return nll
+
+    def denoise(self, noisy_pc: Tensor):
+        clean_pc, _, _ = self(noisy_pc)
+        return clean_pc
 
     def init_as_trained_state(self):
         """Set the network to initialized state, needed for evaluation(significant performance impact)"""
