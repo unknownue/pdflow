@@ -36,7 +36,10 @@ USER $DOCKER_USER
 # Packages -----------------------------------------------------------------
 RUN pip install --no-cache-dir --user pqi && pqi use aliyun
 RUN pip install --no-cache-dir --user pytorch_lightning==1.3.8 && \
-    pip install --user git+git://github.com/fwilliams/point-cloud-utils
+    pip install --user git+git://github.com/fwilliams/point-cloud-utils && \
+    # https://github.com/unlimblue/KNN_CUDA
+    pip install --no-cache-dir --user --upgrade https://github.com/unlimblue/KNN_CUDA/releases/download/0.2/KNN_CUDA-0.2-py3-none-any.whl && \
+    pip install --user "git+git://github.com/erikwijmans/Pointnet2_PyTorch.git#egg=pointnet2_ops&subdirectory=pointnet2_ops_lib"
 
 # For render figures
 # RUN conda create -n blender_render python=3.7 && \

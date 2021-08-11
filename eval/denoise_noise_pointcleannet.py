@@ -7,7 +7,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 
-PROGRAM_PATH = Path('/workspace/Experiment/Denoise/pointcleannet/noise_removal/eval_pcpnet.py')
+DEN_PROGRAM_PATH = Path('/workspace/Experiment/Denoise/pointcleannet/noise_removal/eval_pcpnet.py')
 CHECKPOINT_PATH = Path('/workspace/Experiment/Denoise/pointcleannet/models/denoisingModel/')
 
 
@@ -22,7 +22,7 @@ def evaluate(args, path, split):
         shapename = '%s_{i}'%(file_name.replace('.xyz', ''))
 
     # print('Evaluating %s...'%path)
-    cmd_denoise = '''python %s --nrun=%d --modeldir=%s --indir=%s --outdir=%s --shapename=%s > /dev/null''' % (PROGRAM_PATH, args.iteration, CHECKPOINT_PATH, indir, outdir, shapename)
+    cmd_denoise = '''python %s --nrun=%d --modeldir=%s --indir=%s --outdir=%s --shapename=%s > /dev/null''' % (DEN_PROGRAM_PATH, args.iteration, CHECKPOINT_PATH, indir, outdir, shapename)
     # print(cmd)
     os.system(cmd_denoise)
 
@@ -32,9 +32,8 @@ def evaluate(args, path, split):
     else:
         npy_path = Path(indir) / file_name.replace('.xyz', '.xyz.npy')
 
-    cmd_delete_npy = '''rm %s''' % (npy_path)
-    os.system(cmd_delete_npy)
-
+    os.remove(npy_path)
+    os.remove(outdir / shapename.replace('_{i}', f'_{args.iteration - 1}.xyz'))
 
 
 def mp_walkFile(func, args, split, directory):
@@ -64,12 +63,13 @@ if __name__ == "__main__":
     # splits = ['train_test_0.010']
     splits = ['train_test_0.010', 'train_test_0.020', 'train_test_0.025', 'train_test_0.030']
     # dnames = ['input_full_test_50k_0.010']
-    dnames = ['input_full_test_50k_0.010', 'input_full_test_50k_0.020', 'input_full_test_50k_0.025', 'input_full_test_50k_0.030']
+    # dnames = ['input_full_test_50k_0.010', 'input_full_test_50k_0.020', 'input_full_test_50k_0.025', 'input_full_test_50k_0.030']
 
     for i, split in enumerate(splits):
 
         if args.iteration == 1:
-            target_path = Path(args.input_dir) / dnames[i]
+            # target_path = Path(args.input_dir) / dnames[i]
+            target_path = Path(args.input_dir) / f'iter{args.iteration - 1}' / splits[i]
         else:
             target_path = Path(args.input_dir)  / f'iter{args.iteration - 1}' / splits[i]
 

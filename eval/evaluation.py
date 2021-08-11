@@ -3,7 +3,6 @@ import os
 import sys
 import argparse
 import numpy as np
-import torch
 import csv
 import point_cloud_utils as pcu
 
@@ -43,7 +42,6 @@ def point2surface_distance(args, file_name, pred, gt):
     return np.average(p2s)
 
 
-@torch.no_grad()
 def evaluation(args):
 
     metric_global = { 'name': 'Total', 'CD': 0.0, 'P2S': 0.0, 'HD': 0.0 }
