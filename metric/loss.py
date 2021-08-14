@@ -19,6 +19,20 @@ class MaskLoss(nn.Module):
         loss = torch.abs(mask * (1 - mask))  # [1, 1, C]
         return torch.sum(loss)
 
+# -----------------------------------------------------------------------------------------
+class ConsistencyLoss(nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.lossor = torch.nn.MSELoss()
+
+    def forward(self, z1, z2):
+        """
+        z1: [B, N, C]
+        z2: [B, N, C]
+        """
+        return self.lossor(z1, z2)
+
 
 # -----------------------------------------------------------------------------------------
 class EarthMoverDistance(nn.Module):

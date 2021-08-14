@@ -11,7 +11,7 @@ from argparse import ArgumentParser
 
 from dataset.dmrdenoise import DMRDenoiseDataModule
 from models.deflow.deflow import DenoiseFlow
-from metric.loss import MaskLoss
+from metric.loss import MaskLoss, ConsistencyLoss
 from metric.loss import EarthMoverDistance as EMD
 # from metric.loss import ChamferDistance as CD
 
@@ -29,6 +29,7 @@ class TrainerModule(LightningModule):
         self.network = DenoiseFlow()
         self.loss_emd = EMD()
         self.mloss = MaskLoss()
+        self.closs = ConsistencyLoss()
 
         self.epoch = 0
         self.cfg = cfg
@@ -53,16 +54,29 @@ class TrainerModule(LightningModule):
 
     def training_step(self, batch, batch_idx):
 
+        # LBM or FBM
+        # noise, noiseless = batch['pos'], batch['clean']
+        # denoised, logpx, mask = self(noise)
+
+        # emd = self.loss_emd(denoised, noiseless)
+        # lmask = self.mloss(mask)
+        # loss = logpx * 1e-6 + emd * 1e-2 + lmask * 0.05
+
+        # self.log('EMD', emd.detach().cpu().item() * 1e-2, on_step=True, on_epoch=False, prog_bar=True, logger=False)
+        # self.log('logpx', logpx * 1e-6, on_step=True, on_epoch=False, prog_bar=True, logger=False)
+        # self.log('mask', lmask * 0.05, on_step=True, on_epoch=False, prog_bar=True, logger=False)
+
+        # LCC
         noise, noiseless = batch['pos'], batch['clean']
-        denoised, logpx, mask = self(noise)
+        denoised, logpx, (pz, cz) = self(noise, y=noiseless)
 
         emd = self.loss_emd(denoised, noiseless)
-        lmask = self.mloss(mask)
-        loss = logpx * 1e-6 + emd * 1e-2 + lmask * 0.05
+        consistency = self.closs(pz, cz)
+        loss = logpx * 1e-6 + emd * 1e-2 + consistency * 0.05
 
         self.log('EMD', emd.detach().cpu().item() * 1e-2, on_step=True, on_epoch=False, prog_bar=True, logger=False)
         self.log('logpx', logpx * 1e-6, on_step=True, on_epoch=False, prog_bar=True, logger=False)
-        self.log('mask', lmask * 0.05, on_step=True, on_epoch=False, prog_bar=True, logger=False)
+        self.log('consistency', consistency * 0.05, on_step=True, on_epoch=False, prog_bar=True, logger=False)
 
         return loss
 
@@ -74,7 +88,6 @@ class TrainerModule(LightningModule):
             noise, noiseless = batch[key], batch['clean']
             denoised, _, _ = self(noise)
             output[key] = self.loss_emd(denoised, noiseless)
-            # output[key] = self.loss_cd(denoised, noiseless)
 
         return output
 
@@ -145,7 +158,7 @@ def dataset_specific_args():
 # -----------------------------------------------------------------------------------------
 def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
 
-    comment = 'light_nflow-12_aug-20-learnable-mask-k16-inv1x1_noise-multi'
+    comment = 'light_nflow-12_aug-20-latent_consistency-k16-inv1x1'
     cfg = model_specific_args().parse_args()
     pl.seed_everything(cfg.seed)
 
@@ -158,7 +171,7 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
         'fast_dev_run'         : False,
         'max_epochs'           : 200, # cfg.max_epoch,
         'weights_summary'      : 'top',  # 'top', 'full' or None
-        'precision'            : 32,   # 16
+        'precision'            : 16,   # 16
         # 'amp_level'            : 'O1',
         'gradient_clip_val'    : 1e-3,
         'deterministic'        : False,
