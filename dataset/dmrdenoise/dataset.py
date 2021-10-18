@@ -7,9 +7,9 @@ import pytorch_lightning as pl
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
-from dataset.transform import AddRandomNoise, AddNoise, AddNoiseForEval
-from dataset.transform import RandomScale, IdentityTransform
-from dataset.transform import RandomRotate
+from dataset.dmrdenoise.transform import AddRandomNoise, AddNoise, AddNoiseForEval
+from dataset.dmrdenoise.transform import RandomScale, IdentityTransform
+from dataset.dmrdenoise.transform import RandomRotate
 
 
 class DMRDenoiseDataset(Dataset):

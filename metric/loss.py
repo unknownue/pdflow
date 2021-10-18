@@ -7,6 +7,7 @@ from torch.nn import functional as F
 
 from metric.emd.emd_module import emdFunction
 from modules.utils.fps import square_distance
+from kaolin.metrics.pointcloud import chamfer_distance
 
 
 # -----------------------------------------------------------------------------------------
@@ -92,6 +93,20 @@ class ChamferDistance(nn.Module):
         # loss_confi = F.mse_loss(confi, gt_confidence)
 
         return loss_cd
+
+
+class ChamferCUDA(nn.Module):
+
+    def forward(self, points1, points2):
+        """
+        points1: [B, N, 3]
+        points2: [B, N, 3]
+        """
+        cost = chamfer_distance(points1, points2)
+        return torch.sum(cost)
+
+
+
 
 # -----------------------------------------------------------------------------------------
 class NoiseConfidence(nn.Module):

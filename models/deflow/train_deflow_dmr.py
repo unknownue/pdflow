@@ -9,7 +9,7 @@ import pytorch_lightning as pl
 from torch import Tensor
 from argparse import ArgumentParser
 
-from dataset.dmrdenoise import DMRDenoiseDataModule
+from dataset.dmrdenoise.dataset import DMRDenoiseDataModule
 from models.deflow.deflow import DenoiseFlow
 from metric.loss import MaskLoss, ConsistencyLoss
 from metric.loss import EarthMoverDistance as EMD
@@ -102,13 +102,13 @@ class TrainerModule(LightningModule):
 
         extra = []
         if self.epoch % 5 == 0:
-            save_path = f'runs/ckpt/DenoiseFlow-baseline-epoch{self.epoch}.ckpt'
+            save_path = f'runs/ckpt/DenoiseFlow-dmr-epoch{self.epoch}.ckpt'
             torch.save(self.network.state_dict(), save_path)
             extra.append(str(self.epoch))
         for key in keys:
             if log_dict[key] < self.min_noisy_v[key]:
                 self.min_noisy_v[key] = log_dict[key]
-                save_path = f'runs/ckpt/DenoiseFlow-baseline-min_{key}.ckpt'
+                save_path = f'runs/ckpt/DenoiseFlow-dmr-min_{key}.ckpt'
                 torch.save(self.network.state_dict(), save_path)
                 extra.append(key)
 
@@ -171,7 +171,7 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
         'fast_dev_run'         : False,
         'max_epochs'           : 200, # cfg.max_epoch,
         'weights_summary'      : 'top',  # 'top', 'full' or None
-        'precision'            : 16,   # 16
+        'precision'            : 32,   # 16
         # 'amp_level'            : 'O1',
         'gradient_clip_val'    : 1e-3,
         'deterministic'        : False,
@@ -212,7 +212,7 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
 # -----------------------------------------------------------------------------------------
 if __name__ == "__main__":
 
-    checkpoint_path = 'runs/ckpt/DenoiseFlow-baseline'
+    checkpoint_path = 'runs/ckpt/DenoiseFlow-dmr'
     # previous_path = 'runs/ckpt/358c73d-DenoiseFlow-baseline-epoch50.ckpt'
 
     # train('Train', None, None)                      # Train from begining, and save nothing after finish

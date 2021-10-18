@@ -5,6 +5,7 @@ import torch.nn as nn
 from torch import Tensor
 from torch.nn import functional as F
 
+from pytorch3d.ops import knn_gather
 
 
 
@@ -78,7 +79,8 @@ class KnnConvUnit(nn.Module):
             raise NotImplementedError()
             # knn_feat, _ = get_knn_idx(self.k, f, q=None, offset=None, return_features=True)
         else:
-            knn_feat = knn_group(f, knn_idx)  # [B, M, k, C]
+            # knn_feat = knn_group(f, knn_idx)  # [B, M, k, C]
+            knn_feat = knn_gather(f, knn_idx)   # [B, M, k, C]
 
         f_tiled = f.unsqueeze(2).expand_as(knn_feat)  # [B, N, k, C]
         x = torch.cat([f_tiled, knn_feat, knn_feat - f_tiled], dim=-1)  # [B, N, k, C * 3]

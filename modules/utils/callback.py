@@ -13,6 +13,7 @@ class TimeTrainingCallback(pl.Callback):
     def on_train_start(self, trainer, pl_module):
         self.timer = ElapseTimer()
         self.timer.start()
+        print()
 
     # -----------------------------------------------------------------
     # def on_train_end(self, trainer, pl_module):

@@ -6,6 +6,8 @@ import numpy as np
 from torch import Tensor
 from typing import List
 
+from pytorch3d.ops import knn_points
+
 from modules.utils.distribution import GaussianDistribution
 from modules.linear import SoftClampling
 from modules.augment import AugmentLayer, AugmentStep
@@ -29,7 +31,8 @@ class FlowAssembly(nn.Module):
         self.permutate1 = Permutation('inv1x1', idim, dim=2)
         self.permutate2 = Permutation('reverse', idim, dim=2)
 
-        if id < 3 or id % 3 == 0:
+        if id < 3:
+        # if id < 3 or id % 3 == 0:
             self.coupling1 = AffineCouplingLayer('affine', KnnConvUnit, split_dim=2, clamp=SoftClampling(),
                 params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, })
             self.coupling2 = AffineCouplingLayer('affine', KnnConvUnit, split_dim=2, clamp=SoftClampling(),
@@ -117,9 +120,10 @@ class DenoiseFlow(nn.Module):
 
         for i in range(self.nflow_module):
             if i < len(self.pre_ks):
-                knn_idx = get_knn_idx(k=self.pre_ks[i], f=xyz, q=None)
-            elif i % 3 == 0:
-                knn_idx = get_knn_idx(k=16, f=x, q=None)
+                # knn_idx = get_knn_idx(k=self.pre_ks[i], f=xyz, q=None)
+                _, knn_idx, _ = knn_points(p1=xyz, p2=xyz, K=self.pre_ks[i], return_sorted=False)  # may take less memory
+            # elif i % 3 == 0:
+            #     knn_idx = get_knn_idx(k=16, f=x, q=None)
             else:
                 knn_idx = None
             idxes.append(knn_idx)
