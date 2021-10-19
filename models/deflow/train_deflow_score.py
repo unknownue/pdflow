@@ -10,7 +10,7 @@ from torch import Tensor
 from argparse import ArgumentParser
 
 from dataset.scoredenoise.dataset import ScoreDenoiseDataModule
-from models.deflow.deflow import DenoiseFlow
+from models.deflow.deflow import DenoiseFlow, Disentanglement
 from models.deflow.denoise import patch_denoise
 from metric.loss import MaskLoss, ConsistencyLoss
 from metric.loss import EarthMoverDistance as EMD
@@ -27,7 +27,8 @@ class TrainerModule(LightningModule):
     def __init__(self, cfg):
         super(TrainerModule, self).__init__()
 
-        self.network = DenoiseFlow()
+        self.disentangle_method = Disentanglement.FBM
+        self.network = DenoiseFlow(self.disentangle_method)
         self.loss_emd = EMD()
         self.mloss = MaskLoss()
         self.closs = ConsistencyLoss()
@@ -51,12 +52,10 @@ class TrainerModule(LightningModule):
 
     def training_step(self, batch, batch_idx):
 
-        # LCC
         pcl_noisy, pcl_clean = batch['pcl_noisy'], batch['pcl_clean']
-        denoised, logpx, (pz, cz) = self(pcl_noisy, y=pcl_clean)
+        denoised, logpx, consistency = self(pcl_noisy, y=pcl_clean)
 
         emd = self.loss_emd(denoised, pcl_clean)
-        consistency = self.closs(pz, cz)
         loss = logpx * 1e-6 + emd * 0.1 + consistency * 0.1
 
         self.log('EMD', emd.detach().cpu().item() * 0.1, on_step=True, on_epoch=False, prog_bar=True, logger=False)
@@ -84,7 +83,7 @@ class TrainerModule(LightningModule):
         extra = []
         if avg_chamfer < self.min_CD:
             self.min_CD = avg_chamfer
-            save_path = f'runs/ckpt/DenoiseFlow-scoreset-minCD.ckpt'
+            save_path = f'runs/ckpt/DenoiseFlow-{self.disentangle_method.name}-scoreset-minCD.ckpt'
             torch.save(self.network.state_dict(), save_path)
             extra.append('CD')
     
@@ -99,7 +98,7 @@ def model_specific_args():
     # Network
     parser.add_argument('--net', type=str, default='DenoiseFlow')
     # Optimizer and scheduler
-    parser.add_argument('--learning_rate', default=2e-5, type=float)
+    parser.add_argument('--learning_rate', default=1e-4, type=float)
     parser.add_argument('--sched_patience', default=10, type=int)
     parser.add_argument('--sched_factor', default=0.5, type=float)
     parser.add_argument('--min_lr', default=1e-6, type=float)
@@ -142,7 +141,7 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
         'default_root_dir'     : './runs/',
         'gpus'                 : 1,  # Set this to None for CPU training
         'fast_dev_run'         : False,
-        'max_epochs'           : 50, # cfg.max_epoch,
+        'max_epochs'           : 150, # cfg.max_epoch,
         'weights_summary'      : 'top',  # 'top', 'full' or None
         'precision'            : 32,   # 16
         # 'amp_level'            : 'O1',
@@ -185,7 +184,8 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
 # -----------------------------------------------------------------------------------------
 if __name__ == "__main__":
 
-    checkpoint_path = 'runs/ckpt/DenoiseFlow-score'
+    checkpoint_path = 'runs/ckpt/DenoiseFlow-score-FBM'
+    # runs/ckpt/b005752-DenoiseFlow-scoreset-minCD.ckpt
 
     # train('Train', None, None)                      # Train from begining, and save nothing after finish
     train('Train', checkpoint_path, None)           # Train from begining, save network params after finish

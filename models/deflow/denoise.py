@@ -11,7 +11,7 @@ from pytorch3d.ops import knn_points
 
 sys.path.append(os.getcwd())
 
-from models.deflow.deflow import DenoiseFlow
+from models.deflow.deflow import DenoiseFlow, Disentanglement
 from dataset.scoredenoise.transforms import NormalizeUnitSphere
 from modules.utils.score_utils import farthest_point_sampling
 
@@ -51,9 +51,16 @@ def denoise_pcl(args, ipath, opath, network=None):
     # Denormalize
     pcl_denoised = pcl_denoised * scale + center
     np.savetxt(opath, pcl_denoised.numpy(), fmt='%.8f')
-    
+
 def get_denoise_net(ckpt_path):
-    network = DenoiseFlow(pc_channel=3)
+    if Disentanglement.FBM.name in ckpt_path:
+        disentangle = Disentanglement.FBM
+    if Disentanglement.LBM.name in ckpt_path:
+        disentangle = Disentanglement.LBM
+    if Disentanglement.LCC.name in ckpt_path:
+        disentangle = Disentanglement.LCC
+
+    network = DenoiseFlow(disentangle, pc_channel=3)
     network.load_state_dict(torch.load(ckpt_path))
     network.init_as_trained_state()
     network.eval()

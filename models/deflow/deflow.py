@@ -5,6 +5,7 @@ import numpy as np
 
 from torch import Tensor
 from typing import List
+from enum import Enum
 
 from pytorch3d.ops import knn_points
 
@@ -16,6 +17,13 @@ from modules.permutate import Permutation
 from modules.coupling import AffineCouplingLayer
 
 from models.deflow.layer import KnnConvUnit, LinearUnit, AugmentShallow, get_knn_idx
+from metric.loss import MaskLoss, ConsistencyLoss
+
+
+class Disentanglement(Enum):
+    FBM = 1
+    LBM = 2
+    LCC = 3
 
 
 # -----------------------------------------------------------------------------------------
@@ -65,7 +73,7 @@ class FlowAssembly(nn.Module):
 # -----------------------------------------------------------------------------------------
 class DenoiseFlow(nn.Module):
 
-    def __init__(self, pc_channel=3):
+    def __init__(self, disentangle: Disentanglement, pc_channel=3):
         super(DenoiseFlow, self).__init__()
 
         self.nflow_module = 12
@@ -73,6 +81,7 @@ class DenoiseFlow(nn.Module):
         self.aug_channel = 20  # 20
         self.cut_channel = 3   # 3
 
+        self.disentangle = disentangle
         self.dist = GaussianDistribution()
 
         # Augment Component
@@ -93,25 +102,29 @@ class DenoiseFlow(nn.Module):
             flow_assemblies.append(flow)
         self.flow_assemblies = nn.ModuleList(flow_assemblies)
 
-        # Channel Mask ----------------------------------
-        # Fix channel mask
-        # self.channel_mask = nn.Parameter(torch.ones((1, 1, self.in_channel + self.aug_channel)), requires_grad=False)
-        # self.channel_mask[:, :, -self.cut_channel:] = 0.0
+        # -----------------------------------------------
+        # Disentangle method
+        if self.disentangle == Disentanglement.FBM:  # Fix binary mask
+            self.channel_mask = nn.Parameter(torch.ones((1, 1, self.in_channel + self.aug_channel)), requires_grad=False)
+            self.channel_mask[:, :, -self.cut_channel:] = 0.0
 
-        # Random initialization (Works, but slow to convergence)
-        w_init = np.random.randn(self.in_channel + self.aug_channel, self.in_channel + self.aug_channel)
-        w_init = np.linalg.qr(w_init)[0].astype(np.float32)
-        self.channel_mask = nn.Parameter(torch.from_numpy(w_init), requires_grad=True)
+        if self.disentangle == Disentanglement.LBM:  # Learnable binary mask
+            self.mloss = MaskLoss()
+            theta = torch.rand((1, 1, self.in_channel + self.aug_channel))
+            self.theta = nn.Parameter(theta, requires_grad=True)
 
-        # Identity initialization
-        # w_init = torch.eye(self.in_channel + self.aug_channel)
-        # w_init[-self.cut_channel:] = 0.0
-        # w_init = w_init + torch.randn_like(w_init) * 0.05
-        # self.channel_mask = nn.Parameter(w_init, requires_grad=True)
+        if self.disentangle == Disentanglement.LCC:  # Latent Code Consistency
+            self.closs = ConsistencyLoss()
+            # Random initialization
+            w_init = np.random.randn(self.in_channel + self.aug_channel, self.in_channel + self.aug_channel)
+            w_init = np.linalg.qr(w_init)[0].astype(np.float32)
+            self.channel_mask = nn.Parameter(torch.from_numpy(w_init), requires_grad=True)
 
-        # Learnable binary mask
-        # theta = torch.rand((1, 1, self.in_channel + self.aug_channel))
-        # self.theta = nn.Parameter(theta, requires_grad=True)
+            # Identity initialization
+            # w_init = torch.eye(self.in_channel + self.aug_channel)
+            # w_init[-self.cut_channel:] = 0.0
+            # w_init = w_init + torch.randn_like(w_init) * 0.05
+            # self.channel_mask = nn.Parameter(w_init, requires_grad=True)
         # -----------------------------------------------
 
     def f(self, x: Tensor, xyz: Tensor):
@@ -161,25 +174,30 @@ class DenoiseFlow(nn.Module):
 
         clean_z, _, _ = self.log_prob(y) if y is not None else (None, None, None)
 
-        # Fix channel mask
-        # z[:, :, -self.cut_channel:] = 0
-        # predict_z = z
-        # Fix channel mask
-        # predict_z = z * self.channel_mask
-        # Identity initialization
-        predict_z = torch.einsum('ij,bnj->bni', self.channel_mask, z)
-        # Random initialization
-        # predict_z = z * self.channel_mask.expand_as(z)
-        # Learnable binary mask
-        # mask = torch.max(torch.zeros_like(self.theta), 1.0 - (-self.theta).exp())
-        # mask = 1.0 - (-self.theta).exp()
-        # predict_z = z * mask
-
-        # TODO: transform clean point to latent code and compare mask loss
+        loss_denoise = torch.tensor(0.0, dtype=torch.float32, device=x.device)
+        if self.disentangle == Disentanglement.FBM:  # Fix channel mask
+            z[:, :, -self.cut_channel:] = 0
+            predict_z = z
+            # or
+            # predict_z = z * self.channel_mask
+        
+        if self.disentangle == Disentanglement.LBM:
+            # Learnable binary mask
+            mask = torch.max(torch.zeros_like(self.theta), 1.0 - (-self.theta).exp())
+            mask = 1.0 - (-self.theta).exp()
+            predict_z = z * mask
+            loss_denoise = self.mloss(mask)
+        
+        if self.disentangle == Disentanglement.LCC:  # Latent Code Consistency
+            # Identity initialization
+            predict_z = torch.einsum('ij,bnj->bni', self.channel_mask, z)
+            # Random initialization
+            # predict_z = z * self.channel_mask.expand_as(z)
+            loss_denoise = self.closs(predict_z, clean_z)
 
         predict_x = self.sample(predict_z, idxes)
         # return predict_x, ldj, mask
-        return predict_x, ldj, (predict_z, clean_z)
+        return predict_x, ldj, loss_denoise
 
     def nll_loss(self, pts_shape, sldj):
         #ll = sldj - np.log(self.k) * torch.prod(pts_shape[1:])
