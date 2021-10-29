@@ -4,7 +4,7 @@ import numpy as np
 import os
 import sys
 
-sys.path.append('/workspace//GPDNet/Code/GPDNet_mse_sp')
+sys.path.append('/workspace/Denoise/GPDNet/Code/GPDNet_mse_sp')
 
 from tqdm import tqdm
 import pyHilbertSort as hilbersort
@@ -16,23 +16,31 @@ from net_test_conv import Net
 from knn_matrix import knn_matrix_from_data
 
 
-MODEL_PATH1 = '/workspace/GPDNet/Results/GPDNet_mse_sp/0.01/16nn/saved_models/'
-MODEL_PATH2 = '/workspace/GPDNet/Results/GPDNet_mse_sp/0.015/16nn/saved_models/'
-MODEL_PATH3 = '/workspace/GPDNet/Results/GPDNet_mse_sp/0.02/16nn/saved_models/'
+MODEL_PATH1 = '/workspace/Denoise/GPDNet/Results/GPDNet_mse_sp/0.01/16nn/saved_models/'
+MODEL_PATH2 = '/workspace/Denoise/GPDNet/Results/GPDNet_mse_sp/0.015/16nn/saved_models/'
+MODEL_PATH3 = '/workspace/Denoise/GPDNet/Results/GPDNet_mse_sp/0.02/16nn/saved_models/'
 
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--model', default='DenoisePointNet.py', help='Model name: net')
+# parser.add_argument('--model', default='DenoisePointNet.py', help='Model name: net')
 parser.add_argument('--denoised_dir', default='', help='Testing results data directory')
 parser.add_argument('--gt_dir', default='./Dataset/Test_Shapenet_h5/gt/', help='Testing gt data directory')
 parser.add_argument('--noisy_dir', default='./Dataset/Test_Shapenet_h5/noisy/', help='Testing noisy data directory')
+parser.add_argument('--model', default=1, type=int)
 
 
 args = parser.parse_args()
 
+if args.model == 1:
+    RUN_MODEL_PATH = MODEL_PATH1
+if args.model == 2:
+    RUN_MODEL_PATH = MODEL_PATH2
+if args.model == 3:
+    RUN_MODEL_PATH = MODEL_PATH3
+
 config1 = Config()
-config1.save_dir = MODEL_PATH1
+config1.save_dir = RUN_MODEL_PATH
 model1 = Net(config1)
 model1.do_variables_init()
 model1.restore_model(config1.save_dir + 'model.ckpt')
@@ -113,9 +121,16 @@ def evaluate(source_path):
 
     noisy_pt, _idx_sort = hilbersort.hilbertSort(3, noisy_pt)
     noisy_pt = noisy_pt.astype(np.float32)
+    
+    num_raw_point = noisy_pt.shape[0]
 
     # npoints = (noisy_pt.shape[0] / 1024) * 1024
-    npoints = 1024 * 45
+    if num_raw_point == 10000:
+        npoints = 1024 * 10
+    elif num_raw_point == 50000:
+        npoints = 1024 * 45
+    else:
+        assert False, 'Invalid number of points (only 10K or 50K point are support)'
     noisy_pt = fps_numpy(noisy_pt, npoints)
     noisy_pt = np.reshape(noisy_pt, [-1, 1024, 3])
 
@@ -128,6 +143,8 @@ def evaluate(source_path):
     denoise_1 = np.reshape(denoise_1, [-1, 3])
     # denoise_2 = np.reshape(denoise_2, [-1, 3])
     # denoise_3 = np.reshape(denoise_3, [-1, 3])
+    
+    denoise_1 = fps_numpy(denoise_1, num_raw_point)
 
     C2C_noisy_0 = pcu.chamfer_distance(gt_pt, noisy_pt.reshape(-1, 3))
     C2C_noisy_1 = pcu.chamfer_distance(gt_pt, denoise_1)
@@ -135,8 +152,7 @@ def evaluate(source_path):
     # C2C_noisy_3 = compute_C2C(gt_pt, denoise_3) * 1e+06
 
     np.savetxt(target_path, denoise_1, fmt='%.6f')
-    print('%s: %s' % (filename, C2C_noisy_0))
-    print('%s: %s' % (filename, C2C_noisy_1))
+    print('%s: %s -> %s' % (filename, C2C_noisy_0, C2C_noisy_1))
 
     # if C2C_noisy_1 < C2C_noisy_2 and C2C_noisy_1 < C2C_noisy_3:
     #     np.savetxt(denoise_1, target_path, fmt='%.6f')
@@ -144,9 +160,8 @@ def evaluate(source_path):
     #     np.savetxt(denoise_2, target_path, fmt='%.6f')
     # else: # C2C_noisy_3 < C2C_noisy_1 and C2C_noisy_3 < C2C_noisy_2:
     #     np.savetxt(denoise_3, target_path, fmt='%.6f')
-
-
-
+    
+    
 
 def mp_walkFile(directory):
     for root, dirs, files in os.walk(directory):

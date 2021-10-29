@@ -16,17 +16,25 @@ from modules.utils.score_utils import chamfer_distance_unit_sphere
 from modules.utils.score_utils import hausdorff_distance_unit_sphere
 from modules.utils.score_utils import point_mesh_bidir_distance_single_unit_sphere
 
+from eval.uniformity.uniform import point_uniformity, UNIFORM_PRECENTAGE_NAMES
+
+
 
 def evaluation(args):
 
     metric_global = { 'name': 'Total', 'CD': 0.0, 'P2S': 0.0, 'HD': 0.0 }
+    for uniform in UNIFORM_PRECENTAGE_NAMES:
+        metric_global[uniform] = 0.0
     if args.csv is not None:
         fcsv = open(args.csv, 'w', encoding='utf-8')
         csv_writer = csv.writer(fcsv)
-        csv_writer.writerow(['name', 'CD', 'P2S', 'HD'])
+        headers = ['name', 'CD', 'P2S', 'HD']
+        for uniform in UNIFORM_PRECENTAGE_NAMES:
+            headers.append(uniform)
+        csv_writer.writerow(headers)
 
     pred_paths = glob(f'{args.pred_dir}/*.xyz')
-    for pred_path in tqdm(pred_paths):
+    for pred_path in pred_paths:
         if args.verbose:
             print(f'Evaluate {pred_path}...')
 
@@ -48,12 +56,16 @@ def evaluation(args):
         loss_cd  = chamfer_distance_unit_sphere(bpc_pred, bpc_gt)[0].item()
         loss_hd  = hausdorff_distance_unit_sphere(bpc_pred, bpc_gt)[0].item()
         loss_p2f = point_mesh_bidir_distance_single_unit_sphere(pcl=pc_pred, verts=verts, faces=faces).item()
+        loss_uniforms = point_uniformity(pred_path, mesh_path)
 
         metric_local = {}
         metric_local['name'] = file_name
         metric_local['CD']  = loss_cd
         metric_local['P2S'] = loss_p2f
         metric_local['HD']  = loss_hd
+        for (i, uniform) in enumerate(UNIFORM_PRECENTAGE_NAMES):
+            metric_local[uniform] = loss_uniforms[i]
+
         if args.csv is not None:
             csv_writer.writerow(list(metric_local.values()))
 
@@ -61,6 +73,9 @@ def evaluation(args):
         metric_global['P2S'] += loss_p2f
         metric_global['HD']  += loss_hd
         
+        for (i, uniform) in enumerate(UNIFORM_PRECENTAGE_NAMES):
+            metric_global[uniform] += np.nan_to_num(loss_uniforms[i])
+
         # print(f'{file_name}: {loss_cd}')
 
         if args.verbose:
@@ -71,6 +86,10 @@ def evaluation(args):
     metric_global['HD']  = metric_global['HD']  / len(pred_paths)
     
     print(f'Evaluation: [CD]{metric_global["CD"]}, [P2S]{metric_global["P2S"]}, [HD]{metric_global["HD"]}')
+    uniforms_str = '\t'
+    for uniform in UNIFORM_PRECENTAGE_NAMES:
+        uniforms_str += f'  [{uniform}]{metric_global[uniform]}'
+    print(uniforms_str)
 
     if args.csv is not None:
         csv_writer.writerow(list(metric_global.values()))

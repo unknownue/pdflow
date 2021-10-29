@@ -6,14 +6,17 @@ import argparse
 from pathlib import Path
 from tqdm import tqdm
 
-DEN_PROGRAM_PATH = Path("/workspace/Experiment/Denoise/BilateralFilter/build/bilateralfilter")
-FPS_PROGRAM_PATH = Path('/workspace/Experiment/Denoise/deflow/eval/fps_points.py')
+DEN_PROGRAM_PATH = Path("/workspace/Denoise/BilateralFilter/build/bilateralfilter")
+FPS_PROGRAM_PATH = Path('/workspace/Denoise/deflow/eval/fps_points.py')
 
 
 
-def evaluate(args, path, split):
+def evaluate(args, path, split=None):
     _, file_name = os.path.split(path)
-    output_path = Path(args.output_dir) / split / file_name
+    if split is None:
+        output_path = Path(args.output_dir) / file_name
+    else:
+        output_path = Path(args.output_dir) / split / file_name
 
     # print('Evaluating %s...'%path)
     denoise_cmd = '''%s %s %s -r %s -n %s -N %s > /dev/null''' % (DEN_PROGRAM_PATH, path, output_path, args.radius, args.nradius, args.iteration)
@@ -43,13 +46,22 @@ if __name__ == "__main__":
     parser.add_argument('--limit_num_point', type=int, default=None, help='Target number of output points downsampled by fps(if not set, do not employ downsample)')
     parser.add_argument('--radius', type=float, default=0.04, help='neighborhood radius')
     parser.add_argument('--nradius', type=float, default=0.04, help='normal neighborhood radius')
+    parser.add_argument('--dataset', type=str, default='DMRSet')
     parser.add_argument('--iteration', type=int, required=True, help='Number of filter iterations')
     args = parser.parse_args()
 
     i_splits = ['input_full_test_50k_0.010', 'input_full_test_50k_0.020', 'input_full_test_50k_0.025', 'input_full_test_50k_0.030']
     o_splits = ['train_test_0.010', 'train_test_0.020', 'train_test_0.025', 'train_test_0.030']
 
-    for i, (i_split, o_split) in enumerate(zip(i_splits, o_splits)):
-        target_path = Path(args.input_dir) / i_split
-        print('Evaluation for %s'%target_path)
-        mp_walkFile(evaluate, args, o_split, target_path)
+    if args.dataset == 'DMRSet':
+        for i, (i_split, o_split) in enumerate(zip(i_splits, o_splits)):
+            target_path = Path(args.input_dir) / i_split
+            print('Evaluation for %s'%target_path)
+            mp_walkFile(evaluate, args, o_split, target_path)
+    elif args.dataset == 'ScoreSet':
+        if not os.path.exists(args.output_dir):
+            os.mkdir(args.output_dir)
+        print('Evaluation for %s'%args.input_dir)
+        mp_walkFile(evaluate, args, None, args.input_dir)
+    else:
+        assert False, "Unknown dataset"

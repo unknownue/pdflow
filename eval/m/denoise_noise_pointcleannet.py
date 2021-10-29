@@ -7,14 +7,18 @@ from pathlib import Path
 from tqdm import tqdm
 
 
-DEN_PROGRAM_PATH = Path('/workspace/Experiment/Denoise/pointcleannet/noise_removal/eval_pcpnet.py')
-CHECKPOINT_PATH = Path('/workspace/Experiment/Denoise/pointcleannet/models/denoisingModel/')
+DEN_PROGRAM_PATH = Path('/workspace/Denoise/pointcleannet/noise_removal/eval_pcpnet.py')
+CHECKPOINT_PATH = Path('/workspace/Denoise/pointcleannet/models/denoisingModel/')
 
 
-def evaluate(args, path, split):
+def evaluate(args, path, split=None):
 
     indir, file_name = os.path.split(path)
-    outdir = Path(args.output_dir) / f'iter{args.iteration}' / split
+
+    if split is None:
+        outdir = Path(args.output_dir)
+    else:
+        outdir = Path(args.output_dir) / f'iter{args.iteration}' / split
 
     if f'_{args.iteration - 1}.xyz' in file_name:
         shapename = '%s_{i}'%(file_name.replace(f'_{args.iteration - 1}.xyz', ''))
@@ -26,11 +30,14 @@ def evaluate(args, path, split):
     # print(cmd)
     os.system(cmd_denoise)
 
-
-    if args.iteration == 1:
+    if split is None:
         npy_path = Path(outdir) / file_name.replace('.xyz', '_0.xyz.npy')
+        os.rename(outdir / file_name.replace('.xyz', '_1.xyz',), outdir / file_name)
     else:
-        npy_path = Path(indir) / file_name.replace('.xyz', '.xyz.npy')
+        if args.iteration == 1:
+            npy_path = Path(outdir) / file_name.replace('.xyz', '_0.xyz.npy')
+        else:
+            npy_path = Path(indir) / file_name.replace('.xyz', '.xyz.npy')
 
     os.remove(npy_path)
     os.remove(outdir / shapename.replace('_{i}', f'_{args.iteration - 1}.xyz'))
@@ -55,6 +62,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('--iteration', type=int, required=True, help='Indicating i-th iteration')
+    parser.add_argument('--dataset', type=str, default='DMRSet')
     parser.add_argument('--input_dir', type=str, required=True, help='Path to input directory')
     parser.add_argument('--output_dir', type=str, required=True, help='Path to output directory')
 
@@ -65,13 +73,19 @@ if __name__ == "__main__":
     # dnames = ['input_full_test_50k_0.010']
     # dnames = ['input_full_test_50k_0.010', 'input_full_test_50k_0.020', 'input_full_test_50k_0.025', 'input_full_test_50k_0.030']
 
-    for i, split in enumerate(splits):
+    if args.dataset == 'DMRSet':
+        for i, split in enumerate(splits):
+            if args.iteration == 1:
+                # target_path = Path(args.input_dir) / dnames[i]
+                target_path = Path(args.input_dir) / f'iter{args.iteration - 1}' / splits[i]
+            else:
+                target_path = Path(args.input_dir)  / f'iter{args.iteration - 1}' / splits[i]
 
-        if args.iteration == 1:
-            # target_path = Path(args.input_dir) / dnames[i]
-            target_path = Path(args.input_dir) / f'iter{args.iteration - 1}' / splits[i]
-        else:
-            target_path = Path(args.input_dir)  / f'iter{args.iteration - 1}' / splits[i]
-
-        print('Evaluation for %s'%target_path)
-        mp_walkFile(evaluate, args, split, target_path)
+            print('Evaluation for %s'%target_path)
+            mp_walkFile(evaluate, args, split, target_path)
+    
+    elif args.dataset == 'ScoreSet':
+        print('Evaluation for %s'%args.input_dir)
+        mp_walkFile(evaluate, args, None, args.input_dir)
+    else:
+        assert False, "Unknown dataset"

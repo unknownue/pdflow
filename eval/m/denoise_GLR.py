@@ -8,42 +8,51 @@ import argparse
 from pathlib import Path
 # from tqdm import tqdm
 
-DEN_PROGRAM_PATH = Path("/home/unknownue/Workspace/Research/Experiment/Denoise/GLR/build/run_my_main_glr.sh")
-# FPS_PROGRAM_PATH = Path('/workspace/Experiment/Denoise/deflow/eval/fps_points.py')
+DEN_PROGRAM_PATH = Path("/home/unknownue/Workspace/Research/Denoise/GLR/build/run_my_main_glr.sh")
+# FPS_PROGRAM_PATH = Path('/workspace/Denoise/deflow/eval/fps_points.py')
 MATLAB_PATH = Path('/usr/local/MATLAB/R2016b')
 
-GT_DATA_PATH         = Path('/workspace/Datasets/DMRDenoise/gts_full_test_50k/')
-GT_PLY_TMP_PATH1     = Path('/workspace/Experiment/Denoise/GLR/build/gt-pt.ply')
-GT_PLY_TMP_PATH2     = Path('/home/unknownue/Workspace/Research/Experiment/Denoise/GLR/build/gt-pt.ply')
-INPUT_PLY_TMP_PATH1  = Path('/workspace/Experiment/Denoise/GLR/build/i-pt.ply')
-INPUT_PLY_TMP_PATH2  = Path('/home/unknownue/Workspace/Research/Experiment/Denoise/GLR/build/i-pt.ply')
-OUTPUT_PLY_TMP_PATH1 = Path('/home/unknownue/Workspace/Research/Experiment/Denoise/GLR/build/o-pt.ply')
-OUTPUT_PLY_TMP_PATH2 = Path('/workspace/Experiment/Denoise/GLR/build/o-pt.ply')
+GT_DATA_PATH1 = Path('/workspace/Datasets/DMRDenoise/gts_full_test_50k/')
+GT_DATA_PATH2 = Path('/workspace/Datasets/ScoreDenoise/PUNet/pointclouds/test/50000_poisson/')
+
+GT_PLY_TMP_PATH1     = Path('/workspace/Denoise/GLR/build/gt-pt.ply')
+GT_PLY_TMP_PATH2     = Path('/home/unknownue/Workspace/Research/Denoise/GLR/build/gt-pt.ply')
+INPUT_PLY_TMP_PATH1  = Path('/workspace/Denoise/GLR/build/i-pt.ply')
+INPUT_PLY_TMP_PATH2  = Path('/home/unknownue/Workspace/Research/Denoise/GLR/build/i-pt.ply')
+OUTPUT_PLY_TMP_PATH1 = Path('/home/unknownue/Workspace/Research/Denoise/GLR/build/o-pt.ply')
+OUTPUT_PLY_TMP_PATH2 = Path('/workspace/Denoise/GLR/build/o-pt.ply')
 
 
 
-def evaluate(args, path, split):
+def evaluate(args, path, split=None):
     _, file_name = os.path.split(path)
-    input_path = Path(args.input_dir0) / split / file_name
-    output_path = Path(args.output_dir) / split / file_name
-    gt_path = GT_DATA_PATH / file_name
+    if split is None:
+        input_path  = Path(args.input_dir0) / file_name
+        output_path = Path(args.output_dir) / file_name
+        gt_path = GT_DATA_PATH2 / file_name
+    else:
+        input_path  = Path(args.input_dir0) / split / file_name
+        output_path = Path(args.output_dir) / split / file_name
+        gt_path = GT_DATA_PATH1 / file_name
+
+    # pip install convertcloud
 
     # Convert from xyz to ply
-    xyz2ply_cmd = '''docker exec -w /workspace/Experiment/Denoise/deflow/ expr-pdflow cvc %s %s > /dev/null''' % (input_path, INPUT_PLY_TMP_PATH1)
+    xyz2ply_cmd = '''docker exec -w /workspace/Denoise/deflow/ nf cvc %s %s > /dev/null''' % (input_path, INPUT_PLY_TMP_PATH1)
     # xyz2ply_cmd = '''cvc %s %s''' % (path, INPUT_PLY_TMP_PATH)
     os.system(xyz2ply_cmd)
 
-    gt_xyz2ply_cmd = '''docker exec -w /workspace/Experiment/Denoise/deflow/ expr-pdflow cvc %s %s > /dev/null''' % (gt_path, GT_PLY_TMP_PATH1)
+    gt_xyz2ply_cmd = '''docker exec -w /workspace/Denoise/deflow/ nf cvc %s %s > /dev/null''' % (gt_path, GT_PLY_TMP_PATH1)
     # gt_xyz2ply_cmd = '''cvc %s %s''' % (gt_path, GT_PLY_TMP_PATH)
     os.system(gt_xyz2ply_cmd)
 
     # print('Evaluating %s...'%path)
-    denoise_cmd = '''bash %s %s %s %s %s %s> /dev/null''' % (DEN_PROGRAM_PATH, MATLAB_PATH, INPUT_PLY_TMP_PATH2, GT_PLY_TMP_PATH2, OUTPUT_PLY_TMP_PATH1, args.noise_level)
+    denoise_cmd = '''bash %s %s %s %s %s %s > /dev/null''' % (DEN_PROGRAM_PATH, MATLAB_PATH, INPUT_PLY_TMP_PATH2, GT_PLY_TMP_PATH2, OUTPUT_PLY_TMP_PATH1, args.noise_level)
     # print(cmd)
     os.system(denoise_cmd)
 
     # Convert from ply to xyz
-    ply2xyz_cmd = '''docker exec -w /workspace/Experiment/Denoise/deflow/ expr-pdflow cvc %s %s > /dev/null''' % (OUTPUT_PLY_TMP_PATH2, output_path)
+    ply2xyz_cmd = '''docker exec -w /workspace/Denoise/deflow/ nf cvc %s %s > /dev/null''' % (OUTPUT_PLY_TMP_PATH2, output_path)
     # ply2xyz_cmd = '''cvc %s %s''' % (OUTPUT_PLY_TMP_PATH, output_path)
     os.system(ply2xyz_cmd)
 
@@ -60,7 +69,7 @@ def mp_walkFile(func, args, split, directory):
 
         # Single thread processing
         for i, path in enumerate(paths):
-            print(f'{i}: {os.path.split(path)[1]}')
+            # print(f'{i}: {os.path.split(path)[1]}')
             func(args, path, split)
 
 
@@ -72,12 +81,22 @@ if __name__ == "__main__":
     parser.add_argument('--output_dir', type=str, required=True, help='Path to output directory')
     parser.add_argument('--limit_num_point', type=int, default=None, help='Target number of output points downsampled by fps(if not set, do not employ downsample)')
     parser.add_argument('--noise_level', type=float, default=0.04)  # [0.02, 0.03, 0.04]
+    parser.add_argument('--dataset', type=str, default='DMRSet')
     args = parser.parse_args()
 
     splits = ['train_test_0.010', 'train_test_0.020', 'train_test_0.025', 'train_test_0.030']
     # splits = ['train_test_0.025', 'train_test_0.030']
 
-    for i, split in enumerate(splits):
-        target_path = Path(args.input_dir1) / split
-        print('Evaluation for %s'%target_path)
-        mp_walkFile(evaluate, args, split, target_path)
+
+    if args.dataset == 'DMRSet':
+        for i, split in enumerate(splits):
+            target_path = Path(args.input_dir1) / split
+            print('Evaluation for %s'%target_path)
+            mp_walkFile(evaluate, args, split, target_path)
+    elif args.dataset == 'ScoreSet':
+        # if not os.path.isdir(args.output_dir):
+        #     os.mkdir(args.output_dir)
+        print('Evaluation for %s'%args.input_dir1)
+        mp_walkFile(evaluate, args, None, args.input_dir1)
+    else:
+        assert False, "Unknown dataset"

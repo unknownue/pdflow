@@ -8,8 +8,8 @@ docker run -id --rm \
    --device /dev/nvidia-uvm-tools \
    --device /dev/nvidiactl \
    --gpus all \
-   --name expr-pdflow \
+   --name comp-pdflow \
    -e NVIDIA_DRIVER_CAPABILITIES=graphics,display,compute,utility \
    -w /workspace \
    --shm-size 8G \
-   unknownue/pdflow
+   unknownue/pdflow:torch1.8-cuda11.1

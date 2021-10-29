@@ -5,15 +5,15 @@ import numpy as np
 
 from pathlib import Path
 
-OUTLIER_REMOVE_PROGRAM_PATH = Path('/workspace/Experiment/Denoise/pointcleannet/outliers_removal/eval_pcpnet.py')
-TEMPORARY_DIR = Path('/workspace/Experiment/Denoise/pointcleannet/outliers_removal/TEMP')
-CHECKPOINT_PATH = Path('/workspace/Experiment/Denoise/pointcleannet/models/outliersRemovalModel')
+OUTLIER_REMOVE_PROGRAM_PATH = Path('/workspace/Denoise/pointcleannet/outliers_removal/eval_pcpnet.py')
+TEMPORARY_DIR = Path('/workspace/Denoise/pointcleannet/outliers_removal/TEMP')
+CHECKPOINT_PATH = Path('/workspace/Denoise/pointcleannet/models/outliersRemovalModel')
 
 
 def evaluate(args):
     
     # Classify outliers
-    denoise_cmd = '''python %s --indir=%s --outdir=%s --modeldir=%s''' % (OUTLIER_REMOVE_PROGRAM_PATH, args.input_dir, TEMPORARY_DIR, CHECKPOINT_PATH)
+    denoise_cmd = '''python %s --indir=%s --outdir=%s --modeldir=%s > /dev/null''' % (OUTLIER_REMOVE_PROGRAM_PATH, args.input_dir, TEMPORARY_DIR, CHECKPOINT_PATH)
     os.system(denoise_cmd)
 
     # filter out points with probs greate than 0.5

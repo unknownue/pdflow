@@ -10,12 +10,15 @@ import argparse
 from pathlib import Path
 from tqdm import tqdm
 
-DEN_PROGRAM_PATH = Path('/workspace/Experiment/Denoise/Jet/jet.out')
+DEN_PROGRAM_PATH = Path('/workspace/Denoise/Jet/jet.out')
 
 
-def evaluate(args, path, split):
+def evaluate(args, path, split=None):
     _, file_name = os.path.split(path)
-    output_path = Path(args.output_dir) / split / file_name
+    if split is None:
+        output_path = Path(args.output_dir) / file_name
+    else:
+        output_path = Path(args.output_dir) / split / file_name
 
     # print('Evaluating %s...'%path)
     denoise_cmd = '''%s %s %s %s %s %s > /dev/null''' % (DEN_PROGRAM_PATH, path, args.d_fitting, args.d_monge, args.neighbour_size, output_path)
@@ -37,11 +40,21 @@ if __name__ == "__main__":
     parser.add_argument('--d_fitting', type=int, default=4)
     parser.add_argument('--d_monge', type=int, default=4)
     parser.add_argument('--neighbour_size', type=int, default=16)
+    parser.add_argument('--dataset', type=str, default='DMRSet')
     args = parser.parse_args()
 
     splits = ['train_test_0.010', 'train_test_0.020', 'train_test_0.025', 'train_test_0.030']
 
-    for i, split in enumerate(splits):
-        target_path = Path(args.input_dir) / split
-        print('Evaluation for %s'%target_path)
-        mp_walkFile(evaluate, args, split, target_path)
+
+    if args.dataset == 'DMRSet':
+        for i, split in enumerate(splits):
+            target_path = Path(args.input_dir) / split
+            print('Evaluation for %s'%target_path)
+            mp_walkFile(evaluate, args, split, target_path)
+    elif args.dataset == 'ScoreSet':
+        if not os.path.exists(args.output_dir):
+            os.mkdir(args.output_dir)
+        print('Evaluation for %s'%args.input_dir)
+        mp_walkFile(evaluate, args, None, args.input_dir)
+    else:
+        assert False, "Unknown dataset"
