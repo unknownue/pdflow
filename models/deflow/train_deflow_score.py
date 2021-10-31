@@ -27,7 +27,7 @@ class TrainerModule(LightningModule):
     def __init__(self, cfg):
         super(TrainerModule, self).__init__()
 
-        self.disentangle_method = Disentanglement.FBM
+        self.disentangle_method = Disentanglement.LCC
         self.network = DenoiseFlow(self.disentangle_method)
         self.loss_emd = EMD()
         self.mloss = MaskLoss()
@@ -47,8 +47,9 @@ class TrainerModule(LightningModule):
         # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=self.cfg.sched_patience, factor=self.cfg.sched_factor, min_lr=self.cfg.min_lr)
         # return { 'optimizer': optimizer, 'lr_scheduler': { 'scheduler': scheduler, 'monitor': 'EMD' } }
 
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=self.cfg.sched_patience, factor=self.cfg.sched_factor, min_lr=self.cfg.min_lr)
-        return { "optimizer": optimizer, 'scheduler': scheduler }
+        #scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=self.cfg.sched_patience, factor=self.cfg.sched_factor, min_lr=self.cfg.min_lr)
+        #return { "optimizer": optimizer, 'scheduler': scheduler }
+        return optimizer
 
     def training_step(self, batch, batch_idx):
 
@@ -98,7 +99,7 @@ def model_specific_args():
     # Network
     parser.add_argument('--net', type=str, default='DenoiseFlow')
     # Optimizer and scheduler
-    parser.add_argument('--learning_rate', default=1e-4, type=float)
+    parser.add_argument('--learning_rate', default=1e-3, type=float)
     parser.add_argument('--sched_patience', default=10, type=int)
     parser.add_argument('--sched_factor', default=0.5, type=float)
     parser.add_argument('--min_lr', default=1e-6, type=float)
@@ -111,8 +112,8 @@ def model_specific_args():
 def dataset_specific_args():
     parser = ArgumentParser()
 
-    parser.add_argument('--noise_min', default=0.005, type=float)
-    parser.add_argument('--noise_max', default=0.020, type=float)
+    parser.add_argument('--noise_min', default=0.005, type=float)  # 0.005
+    parser.add_argument('--noise_max', default=0.025, type=float)  # 0.020
     parser.add_argument('--val_noise', default=0.015, type=float)
     parser.add_argument('--aug_rotate', default=True, choices=[True, False])
     parser.add_argument('--dataset_root', default='./data/ScoreDenoise', type=str)
@@ -121,7 +122,7 @@ def dataset_specific_args():
     # parser.add_argument('--resolutions', default=['10000_poisson'], type=list)
     parser.add_argument('--patch_size', type=int, default=1024)
     parser.add_argument('--num_patches', type=int, default=100)
-    parser.add_argument('--train_batch_size', type=int, default=8)
+    parser.add_argument('--train_batch_size', type=int, default=16)
     parser.add_argument('--num_workers', default=4, type=int)
 
     return parser
@@ -141,7 +142,7 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
         'default_root_dir'     : './runs/',
         'gpus'                 : 1,  # Set this to None for CPU training
         'fast_dev_run'         : False,
-        'max_epochs'           : 150, # cfg.max_epoch,
+        'max_epochs'           : 200, # cfg.max_epoch,
         'weights_summary'      : 'top',  # 'top', 'full' or None
         'precision'            : 32,   # 16
         # 'amp_level'            : 'O1',
@@ -184,8 +185,10 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
 # -----------------------------------------------------------------------------------------
 if __name__ == "__main__":
 
-    checkpoint_path = 'runs/ckpt/DenoiseFlow-score-FBM'
+    checkpoint_path = 'runs/ckpt/DenoiseFlow-score-LCC'
     # runs/ckpt/b005752-DenoiseFlow-scoreset-minCD.ckpt
+    # previous_path = 'runs/ckpt/DenoiseFlow-LBM-scoreset-minCD.ckpt'
+    # previous_path = 'runs/ckpt/DenoiseFlow-LCC-scoreset-minCD.ckpt'
 
     # train('Train', None, None)                      # Train from begining, and save nothing after finish
     train('Train', checkpoint_path, None)           # Train from begining, save network params after finish

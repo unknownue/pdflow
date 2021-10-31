@@ -15,7 +15,7 @@ from glob import glob
 from tqdm import tqdm
 
 from modules.utils.fps import normalize_point_cloud_numpy
-from models.deflow.deflow import DenoiseFlow
+from models.deflow.deflow import DenoiseFlow, Disentanglement
 # from models.deflow.pdeflow import ExDenoiseFlow
 from modules.utils.modules import BatchIdxIter
 from eval.fps_points import fps_numpy
@@ -116,7 +116,14 @@ def run_denoise_large_point_cloud(pc, network, cluster_size, patch_size, device,
 
 
 def get_denoise_net(ckpt_path):
-    network = DenoiseFlow(pc_channel=3)
+    if Disentanglement.FBM.name in ckpt_path:
+        disentangle = Disentanglement.FBM
+    if Disentanglement.LBM.name in ckpt_path:
+        disentangle = Disentanglement.LBM
+    if Disentanglement.LCC.name in ckpt_path:
+        disentangle = Disentanglement.LCC
+
+    network = DenoiseFlow(disentangle, pc_channel=3)
     state_dict = torch.load(ckpt_path)
     network.load_state_dict(state_dict)
     network.init_as_trained_state()

@@ -39,11 +39,11 @@ class FlowAssembly(nn.Module):
         self.permutate1 = Permutation('inv1x1', idim, dim=2)
         self.permutate2 = Permutation('reverse', idim, dim=2)
 
-        if id < 3:
+        if id < 5:
         # if id < 3 or id % 3 == 0:
             self.coupling1 = AffineCouplingLayer('affine', KnnConvUnit, split_dim=2, clamp=SoftClampling(),
                 params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, })
-            self.coupling2 = AffineCouplingLayer('affine', KnnConvUnit, split_dim=2, clamp=SoftClampling(),
+            self.coupling2 = AffineCouplingLayer('affine', LinearUnit, split_dim=2, clamp=SoftClampling(),
                 params={ 'in_channel': channel1, 'hidden_channel': hdim, 'out_channel': channel2, })
         else:
             self.coupling1 = AffineCouplingLayer('affine', LinearUnit, split_dim=2, clamp=SoftClampling(),
@@ -76,10 +76,10 @@ class DenoiseFlow(nn.Module):
     def __init__(self, disentangle: Disentanglement, pc_channel=3):
         super(DenoiseFlow, self).__init__()
 
-        self.nflow_module = 12
+        self.nflow_module = 8
         self.in_channel = pc_channel
-        self.aug_channel = 20  # 20
-        self.cut_channel = 3   # 3
+        self.aug_channel = 32  # 20
+        self.cut_channel = 6   # 3
 
         self.disentangle = disentangle
         self.dist = GaussianDistribution()
@@ -94,7 +94,8 @@ class DenoiseFlow(nn.Module):
         self.argument = AugmentLayer(self.dist, self.aug_channel, shallow, augment_steps)
 
         # Flow Component
-        self.pre_ks = [8, 16, 24]
+        #self.pre_ks = [8, 16, 24]
+        self.pre_ks = [32, 16, 32, 16, 32]
         flow_assemblies = []
 
         for i in range(self.nflow_module):
@@ -193,7 +194,7 @@ class DenoiseFlow(nn.Module):
             predict_z = torch.einsum('ij,bnj->bni', self.channel_mask, z)
             # Random initialization
             # predict_z = z * self.channel_mask.expand_as(z)
-            loss_denoise = self.closs(predict_z, clean_z)
+            loss_denoise = self.closs(predict_z, clean_z) if y is not None else None
 
         predict_x = self.sample(predict_z, idxes)
         # return predict_x, ldj, mask
