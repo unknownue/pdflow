@@ -2,6 +2,7 @@
 import os
 import sys
 import argparse
+import numpy as np
 
 from pathlib import Path
 from tqdm import tqdm
@@ -21,16 +22,22 @@ def evaluate(args, path, split=None):
     if split is None:
         output_path = Path(args.output_dir) / file_name
     else:
-        output_path = Path(args.output_dir) / split / file_name
+        outdir = Path(args.output_dir) / split
+        if not os.path.exists(outdir):
+            os.mkdir(outdir)
+        output_path = outdir / file_name
+
+    pc = np.loadtxt(path, dtype=np.float32)
+    N, _ = pc.shape
 
     for _ in range(args.niters):
         # print('Evaluating %s...'%path)
-        denoise_cmd = '''python %s --input=%s --output=%s --ckpt=%s > /dev/null''' % (DEN_PROGRAM_PATH, path, output_path, CHECKPOINT_PATH)
+        denoise_cmd = '''python %s --input=%s --output=%s --ckpt="%s" > /dev/null''' % (DEN_PROGRAM_PATH, path, output_path, CHECKPOINT_PATH)
         # print(cmd)
         os.system(denoise_cmd)
 
         if args.limit_num_point is not None:
-            down_cmd = '''python %s --input_file=%s --output_file=%s --num_points=%s''' % (FPS_PROGRAM_PATH, output_path, output_path, args.limit_num_point)
+            down_cmd = '''python %s --input_file=%s --output_file=%s --num_points=%s''' % (FPS_PROGRAM_PATH, output_path, output_path, (args.limit_num_point or N))
             os.system(down_cmd)
         
         path = output_path
@@ -50,13 +57,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('--input_dir', type=str, required=True, help='Path to input directory')
     parser.add_argument('--output_dir', type=str, required=True, help='Path to output directory')
-    parser.add_argument('--limit_num_point', type=int, default=None, help='Target number of output points downsampled by fps(if not set, do not employ downsample)')
+    parser.add_argument('--limit_num_point', type=int, default=None, help='Target number of output points downsampled by fps(if not set, same as input)')
     parser.add_argument('--dataset', type=str, default='DMRSet')
     parser.add_argument('--niters', type=int, default=1, help='Number of iterations in iteractive denoising')
     args = parser.parse_args()
 
     splits = ['train_test_0.010', 'train_test_0.020', 'train_test_0.025', 'train_test_0.030']
     # dnames = ['input_full_test_50k_0.010', 'input_full_test_50k_0.020', 'input_full_test_50k_0.025', 'input_full_test_50k_0.030']
+
+    if not os.path.exists(args.output_dir):
+        os.mkdir(args.output_dir)
 
     if args.dataset == 'DMRSet':
         for i, split in enumerate(splits):

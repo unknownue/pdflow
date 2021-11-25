@@ -85,7 +85,11 @@ def evaluation(args):
     metric_global['CD']  = metric_global['CD']  / len(pred_paths)
     metric_global['P2S'] = metric_global['P2S'] / len(pred_paths)
     metric_global['HD']  = metric_global['HD']  / len(pred_paths)
-    
+
+    # metric_global['CD']  = metric_global['CD']
+    # metric_global['P2S'] = metric_global['P2S']
+    # metric_global['HD']  = metric_global['HD']
+ 
     print(f'Evaluation: [CD]{metric_global["CD"]}, [P2S]{metric_global["P2S"]}, [HD]{metric_global["HD"]}')
 
     if args.csv is not None:

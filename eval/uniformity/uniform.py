@@ -69,9 +69,13 @@ def analyze_uniform(idx_file, radius_file, map_points_file):
 
     return uniform_measure
 
-def point_uniformity(xyz_path, off_path):
+def point_uniformity(xyz_path, off_path, cache_path=1):
     
-    cmd = '''./eval/uniformity/build/uniformity %s %s > /dev/null''' % (off_path, xyz_path)
-    os.system(cmd)
-    
-    return analyze_uniform('eval/uniformity/pc_disk_idx.txt', 'eval/uniformity/pc_radius.txt', 'eval/uniformity/pc_point2mesh_distance.txt')
+    if cache_path == 1:
+        cmd = '''./eval/uniformity/build/uniformity %s %s > /dev/null''' % (off_path, xyz_path)
+        os.system(cmd)
+        return analyze_uniform('eval/uniformity/pc_disk_idx.txt', 'eval/uniformity/pc_radius.txt', 'eval/uniformity/pc_point2mesh_distance.txt')
+    else:
+        cmd = '''./eval/uniformity/build/uniformity2 %s %s > /dev/null''' % (off_path, xyz_path)
+        os.system(cmd)
+        return analyze_uniform('eval/uniformity/pc_disk_idx2.txt', 'eval/uniformity/pc_radius2.txt', 'eval/uniformity/pc_point2mesh_distance2.txt')

@@ -12,8 +12,8 @@ DEN_PROGRAM_PATH = Path("/home/unknownue/Workspace/Research/Denoise/GLR/build/ru
 # FPS_PROGRAM_PATH = Path('/workspace/Denoise/deflow/eval/fps_points.py')
 MATLAB_PATH = Path('/usr/local/MATLAB/R2016b')
 
-GT_DATA_PATH1 = Path('/workspace/Datasets/DMRDenoise/gts_full_test_50k/')
-GT_DATA_PATH2 = Path('/workspace/Datasets/ScoreDenoise/PUNet/pointclouds/test/50000_poisson/')
+# GT_DATA_PATH1 = Path('/workspace/Datasets/DMRDenoise/gts_full_test_50k/')
+# GT_DATA_PATH2 = Path('/workspace/Datasets/ScoreDenoise/PUNet/pointclouds/test/50000_poisson/')
 
 GT_PLY_TMP_PATH1     = Path('/workspace/Denoise/GLR/build/gt-pt.ply')
 GT_PLY_TMP_PATH2     = Path('/home/unknownue/Workspace/Research/Denoise/GLR/build/gt-pt.ply')
@@ -29,11 +29,10 @@ def evaluate(args, path, split=None):
     if split is None:
         input_path  = Path(args.input_dir0) / file_name
         output_path = Path(args.output_dir) / file_name
-        gt_path = GT_DATA_PATH2 / file_name
     else:
         input_path  = Path(args.input_dir0) / split / file_name
         output_path = Path(args.output_dir) / split / file_name
-        gt_path = GT_DATA_PATH1 / file_name
+    gt_path = Path(args.gt_dir) / file_name
 
     # pip install convertcloud
 
@@ -78,6 +77,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('--input_dir0', type=str, required=True, help='Path to input directory')
     parser.add_argument('--input_dir1', type=str, required=True, help='Path to input directory')
+    parser.add_argument('--gt_dir', type=str, required=True, help='Path to ground truth directory')
     parser.add_argument('--output_dir', type=str, required=True, help='Path to output directory')
     parser.add_argument('--limit_num_point', type=int, default=None, help='Target number of output points downsampled by fps(if not set, do not employ downsample)')
     parser.add_argument('--noise_level', type=float, default=0.04)  # [0.02, 0.03, 0.04]
