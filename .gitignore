@@ -1,6 +1,8 @@
 
 .vscode/
-data/
+data/DMRDenoise
+data/MNIST
+data/ScoreDenoise
 runs/
 scripts/
 models/publish/

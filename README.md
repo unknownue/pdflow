@@ -38,7 +38,7 @@ cp build/lib.linux-x86_64-3.8/emd_cuda.cpython-38m-x86_64-linux-gnu.so .
 
 ## Datasets
 All training and evaluation data can be downloaded from repo of [score-denoise](https://github.com/luost26/score-denoise) and [DMRDenoise](https://github.com/luost26/DMRDenoise/).
-After downloading, place the extracted files into [data] directory as list in [here](data/.gitkeep).
+After downloading, place the extracted files into `data` directory as list in [here](data/.gitkeep).
 
 We include a [pretrained model](pretrain/pdflow-score-LCC.pt) in this repo.
 
