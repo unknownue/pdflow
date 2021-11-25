@@ -10,8 +10,7 @@ from torch import Tensor
 from argparse import ArgumentParser
 
 from dataset.dmrdenoise.dataset import DMRDenoiseDataModule
-from models.deflow.deflow import DenoiseFlow
-from metric.loss import MaskLoss, ConsistencyLoss
+from models.deflow.deflow import DenoiseFlow, Disentanglement
 from metric.loss import EarthMoverDistance as EMD
 # from metric.loss import ChamferDistance as CD
 
@@ -26,10 +25,9 @@ class TrainerModule(LightningModule):
     def __init__(self, cfg):
         super(TrainerModule, self).__init__()
 
-        self.network = DenoiseFlow()
+        self.disentangle_method = Disentanglement.FBM
+        self.network = DenoiseFlow(self.disentangle_method, pc_channel=3)
         self.loss_emd = EMD()
-        self.mloss = MaskLoss()
-        self.closs = ConsistencyLoss()
 
         self.epoch = 0
         self.cfg = cfg
@@ -49,34 +47,22 @@ class TrainerModule(LightningModule):
         # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=self.cfg.sched_patience, factor=self.cfg.sched_factor, min_lr=self.cfg.min_lr)
         # return { 'optimizer': optimizer, 'lr_scheduler': { 'scheduler': scheduler, 'monitor': 'EMD' } }
 
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=self.cfg.sched_patience, factor=self.cfg.sched_factor, min_lr=self.cfg.min_lr)
-        return { "optimizer": optimizer, 'scheduler': scheduler }
+        # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=self.cfg.sched_patience, factor=self.cfg.sched_factor, min_lr=self.cfg.min_lr)
+        # return { "optimizer": optimizer, 'scheduler': scheduler }
+        return optimizer
 
     def training_step(self, batch, batch_idx):
 
-        # LBM or FBM
-        # noise, noiseless = batch['pos'], batch['clean']
-        # denoised, logpx, mask = self(noise)
-
-        # emd = self.loss_emd(denoised, noiseless)
-        # lmask = self.mloss(mask)
-        # loss = logpx * 1e-6 + emd * 1e-2 + lmask * 0.05
-
-        # self.log('EMD', emd.detach().cpu().item() * 1e-2, on_step=True, on_epoch=False, prog_bar=True, logger=False)
-        # self.log('logpx', logpx * 1e-6, on_step=True, on_epoch=False, prog_bar=True, logger=False)
-        # self.log('mask', lmask * 0.05, on_step=True, on_epoch=False, prog_bar=True, logger=False)
-
         # LCC
         noise, noiseless = batch['pos'], batch['clean']
-        denoised, logpx, (pz, cz) = self(noise, y=noiseless)
+        denoised, logpx, consistency = self(noise, y=noiseless)
 
         emd = self.loss_emd(denoised, noiseless)
-        consistency = self.closs(pz, cz)
-        loss = logpx * 1e-6 + emd * 1e-2 + consistency * 0.05
+        loss = logpx * 1e-6 + emd * 0.1 + consistency * 10.0
 
-        self.log('EMD', emd.detach().cpu().item() * 1e-2, on_step=True, on_epoch=False, prog_bar=True, logger=False)
+        self.log('EMD', emd.detach().cpu().item() * 0.1, on_step=True, on_epoch=False, prog_bar=True, logger=False)
         self.log('logpx', logpx * 1e-6, on_step=True, on_epoch=False, prog_bar=True, logger=False)
-        self.log('consistency', consistency * 0.05, on_step=True, on_epoch=False, prog_bar=True, logger=False)
+        self.log('consistency', consistency * 10.0, on_step=True, on_epoch=False, prog_bar=True, logger=False)
 
         return loss
 
@@ -101,14 +87,14 @@ class TrainerModule(LightningModule):
             log_dict[key] = torch.tensor([x[key] for x in batch]).sum().detach().cpu() / n
 
         extra = []
-        if self.epoch % 5 == 0:
-            save_path = f'runs/ckpt/DenoiseFlow-dmr-epoch{self.epoch}.ckpt'
-            torch.save(self.network.state_dict(), save_path)
-            extra.append(str(self.epoch))
+        # if self.epoch % 5 == 0:
+        #     save_path = f'runs/ckpt/DenoiseFlow-dmr-epoch{self.epoch}.ckpt'
+        #     torch.save(self.network.state_dict(), save_path)
+        #     extra.append(str(self.epoch))
         for key in keys:
             if log_dict[key] < self.min_noisy_v[key]:
                 self.min_noisy_v[key] = log_dict[key]
-                save_path = f'runs/ckpt/DenoiseFlow-dmr-min_{key}.ckpt'
+                save_path = f'runs/ckpt/DenoiseFlow-dmr-{self.disentangle_method.name}-min_{key}.ckpt'
                 torch.save(self.network.state_dict(), save_path)
                 extra.append(key)
 
@@ -123,7 +109,7 @@ def model_specific_args():
     # Network
     parser.add_argument('--net', type=str, default='DenoiseFlow')
     # Optimizer and scheduler
-    parser.add_argument('--learning_rate', default=0.0005, type=float)
+    parser.add_argument('--learning_rate', default=2e-3, type=float)
     parser.add_argument('--sched_patience', default=10, type=int)
     parser.add_argument('--sched_factor', default=0.5, type=float)
     parser.add_argument('--min_lr', default=1e-6, type=float)
@@ -136,8 +122,8 @@ def model_specific_args():
 def dataset_specific_args():
     parser = ArgumentParser()
 
-    parser.add_argument('--noise_low1', default=0.04, type=float)  # 0.04
-    parser.add_argument('--noise_high1', default=0.08, type=float, help='-1 for fixed noise level')  # 0.08
+    parser.add_argument('--noise_low1', default=0.02, type=float)  # 0.02
+    parser.add_argument('--noise_high1', default=0.06, type=float, help='-1 for fixed noise level')  # 0.06
     parser.add_argument('--noise_low2', default=None, type=float)  # 0.02
     parser.add_argument('--noise_high2', default=None, type=float, help='-1 for fixed noise level')  # 0.06
     parser.add_argument('--aug_scale', action='store_true', help='Enable scaling augmentation.')
@@ -149,7 +135,7 @@ def dataset_specific_args():
         'data/DMRDenoise/dataset_train/patches_80k_1024.h5',
     ])
     parser.add_argument('--subset_size', default=7000, type=int, help='-1 for unlimited')  # 7000
-    parser.add_argument('--batch_size', default=8, type=int)
+    parser.add_argument('--batch_size', default=11, type=int)
     parser.add_argument('--num_workers', default=4, type=int)
 
     return parser
@@ -158,7 +144,7 @@ def dataset_specific_args():
 # -----------------------------------------------------------------------------------------
 def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
 
-    comment = 'light_nflow-12_aug-20-latent_consistency-k16-inv1x1'
+    comment = 'dmrdenoise set'
     cfg = model_specific_args().parse_args()
     pl.seed_everything(cfg.seed)
 
@@ -212,7 +198,7 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
 # -----------------------------------------------------------------------------------------
 if __name__ == "__main__":
 
-    checkpoint_path = 'runs/ckpt/DenoiseFlow-dmr'
+    checkpoint_path = 'runs/ckpt/DenoiseFlow-dmr-FBM'
     # previous_path = 'runs/ckpt/358c73d-DenoiseFlow-baseline-epoch50.ckpt'
 
     # train('Train', None, None)                      # Train from begining, and save nothing after finish

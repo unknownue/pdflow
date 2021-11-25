@@ -11,12 +11,12 @@ from pytorch3d.ops import knn_points
 
 from modules.utils.distribution import GaussianDistribution
 from modules.linear import SoftClampling
-from modules.augment import AugmentLayer, AugmentStep
+from modules.augment import AugmentLayer, AugmentStep, NoAugmentLayer
 from modules.normalize import ActNorm
 from modules.permutate import Permutation
 from modules.coupling import AffineCouplingLayer
 
-from models.deflow.layer import KnnConvUnit, LinearUnit, AugmentShallow, get_knn_idx
+from models.deflow.layer import KnnConvUnit, LinearUnit, AugmentShallow, FullyConnectedLayer
 from metric.loss import MaskLoss, ConsistencyLoss
 
 
@@ -78,24 +78,27 @@ class DenoiseFlow(nn.Module):
 
         self.nflow_module = 8
         self.in_channel = pc_channel
-        self.aug_channel = 32  # 20
+        self.aug_channel = 32  # 32, 20
         self.cut_channel = 6   # 3
 
         self.disentangle = disentangle
         self.dist = GaussianDistribution()
 
         # Augment Component
-        shallow = AugmentShallow(pc_channel, hidden_channel=32, out_channel=64, num_convs=2)
-        augment_steps = nn.ModuleList([
-            AugmentStep(self.aug_channel, hidden_channel=64, reverse=False),
-            AugmentStep(self.aug_channel, hidden_channel=64, reverse=True),
-            AugmentStep(self.aug_channel, hidden_channel=64, reverse=False),
-        ])
-        self.argument = AugmentLayer(self.dist, self.aug_channel, shallow, augment_steps)
+        if self.aug_channel > 0:
+            shallow = AugmentShallow(pc_channel, hidden_channel=32, out_channel=64, num_convs=2)
+            augment_steps = nn.ModuleList([
+                AugmentStep(self.aug_channel, hidden_channel=64, reverse=False),
+                AugmentStep(self.aug_channel, hidden_channel=64, reverse=True),
+                AugmentStep(self.aug_channel, hidden_channel=64, reverse=False),
+            ])
+            self.argument = AugmentLayer(self.dist, self.aug_channel, shallow, augment_steps)
+        else:
+            self.argument = NoAugmentLayer()
 
         # Flow Component
         #self.pre_ks = [8, 16, 24]
-        self.pre_ks = [32, 16, 32, 16, 32]
+        self.pre_ks = [32, 16, 32, 16, 32]  # 5d2ddd6
         flow_assemblies = []
 
         for i in range(self.nflow_module):
@@ -136,8 +139,6 @@ class DenoiseFlow(nn.Module):
             if i < len(self.pre_ks):
                 # knn_idx = get_knn_idx(k=self.pre_ks[i], f=xyz, q=None)
                 _, knn_idx, _ = knn_points(p1=xyz, p2=xyz, K=self.pre_ks[i], return_sorted=False)  # may take less memory
-            # elif i % 3 == 0:
-            #     knn_idx = get_knn_idx(k=16, f=x, q=None)
             else:
                 knn_idx = None
             idxes.append(knn_idx)
@@ -173,8 +174,6 @@ class DenoiseFlow(nn.Module):
     def forward(self, x: Tensor, y: Tensor=None):
         z, ldj, idxes = self.log_prob(x)
 
-        clean_z, _, _ = self.log_prob(y) if y is not None else (None, None, None)
-
         loss_denoise = torch.tensor(0.0, dtype=torch.float32, device=x.device)
         if self.disentangle == Disentanglement.FBM:  # Fix channel mask
             z[:, :, -self.cut_channel:] = 0
@@ -190,6 +189,8 @@ class DenoiseFlow(nn.Module):
             loss_denoise = self.mloss(mask)
         
         if self.disentangle == Disentanglement.LCC:  # Latent Code Consistency
+            clean_z, _, _ = self.log_prob(y) if y is not None else (None, None, None)
+
             # Identity initialization
             predict_z = torch.einsum('ij,bnj->bni', self.channel_mask, z)
             # Random initialization
@@ -217,4 +218,29 @@ class DenoiseFlow(nn.Module):
         """Set the network to initialized state, needed for evaluation(significant performance impact)"""
         for i in range(self.nflow_module):
             self.flow_assemblies[i].actnorm.is_inited = True
+# -----------------------------------------------------------------------------------------
+
+
+
+# -----------------------------------------------------------------------------------------
+class DenoiseFlowMLP(DenoiseFlow):
+
+    def __init__(self, disentangle: Disentanglement, pc_channel=3):
+        super(DenoiseFlowMLP, self).__init__(disentangle, pc_channel)
+
+        full_channel = self.in_channel + self.aug_channel
+
+        self.sample_mlp = nn.Sequential(
+            FullyConnectedLayer(full_channel, full_channel * 2, activation='relu'),
+            FullyConnectedLayer(full_channel * 2, full_channel * 4, activation='relu'),
+            FullyConnectedLayer(full_channel * 4, full_channel * 4, activation='relu'),
+            FullyConnectedLayer(full_channel * 4, full_channel * 2, activation='relu'),
+            FullyConnectedLayer(full_channel * 2, full_channel * 2, activation='relu'),
+            FullyConnectedLayer(full_channel * 2, full_channel, activation='relu'),
+            FullyConnectedLayer(full_channel, full_channel, activation='relu'),
+            FullyConnectedLayer(full_channel, full_channel // 2, activation='relu'),
+            FullyConnectedLayer(full_channel // 2, 3, activation=None))
+
+    def sample(self, z: Tensor, idxes: List[Tensor]):
+        return self.sample_mlp(z)
 # -----------------------------------------------------------------------------------------

@@ -50,6 +50,41 @@ class AddNoise(object):
         return data
 
 
+
+# non-isotropic Gaussian noise
+class AddCovNoise(object):
+
+    def __init__(self, cov, std_factor=1.0):
+        super().__init__()
+        self.cov = torch.FloatTensor(cov)
+        self.std_factor = std_factor
+
+    def __call__(self, data):
+        num_points = data['pcl_clean'].shape[0]
+        noise = np.random.multivariate_normal(np.zeros(3), self.cov.numpy(), num_points) # (N, 3)
+        noise = torch.FloatTensor(noise).to(data['pcl_clean'])
+        data['pcl_noisy'] = data['pcl_clean'] + noise * self.std_factor
+        data['noise_std'] = self.std_factor
+        return data
+
+# Uni-directional Noise
+class AddUniDirectional(object):
+
+    def __init__(self, std_factor=1.0):
+        super().__init__()
+        self.std_factor = std_factor
+
+    def __call__(self, data):
+        num_points = data['pcl_clean'].shape[0]
+        noise = np.random.normal(loc=0.0, scale=self.std_factor, size=(num_points,))
+        noise = torch.FloatTensor(noise).to(data['pcl_clean'])
+        data['pcl_noisy'] = torch.clone(data['pcl_clean'])
+        data['pcl_noisy'][:, 0] += noise
+        data['noise_std'] = self.std_factor
+        return data
+
+
+# Laplace noise
 class AddLaplacianNoise(object):
 
     def __init__(self, noise_std_min, noise_std_max):
@@ -61,6 +96,21 @@ class AddLaplacianNoise(object):
         noise_std = random.uniform(self.noise_std_min, self.noise_std_max)
         noise = torch.FloatTensor(np.random.laplace(0, noise_std, size=data['pcl_clean'].shape)).to(data['pcl_clean'])
         data['pcl_noisy'] = data['pcl_clean'] + noise
+        data['noise_std'] = noise_std
+        return data
+
+
+# uniform noise
+class AddNoise(object):
+
+    def __init__(self, noise_std_min, noise_std_max):
+        super().__init__()
+        self.noise_std_min = noise_std_min
+        self.noise_std_max = noise_std_max
+
+    def __call__(self, data):
+        noise_std = random.uniform(self.noise_std_min, self.noise_std_max)
+        data['pcl_noisy'] = data['pcl_clean'] + torch.randn_like(data['pcl_clean']) * noise_std
         data['noise_std'] = noise_std
         return data
 
@@ -88,22 +138,7 @@ class AddUniformBallNoise(object):
         return data
 
 
-class AddCovNoise(object):
-
-    def __init__(self, cov, std_factor=1.0):
-        super().__init__()
-        self.cov = torch.FloatTensor(cov)
-        self.std_factor = std_factor
-
-    def __call__(self, data):
-        num_points = data['pcl_clean'].shape[0]
-        noise = np.random.multivariate_normal(np.zeros(3), self.cov.numpy(), num_points) # (N, 3)
-        noise = torch.FloatTensor(noise).to(data['pcl_clean'])
-        data['pcl_noisy'] = data['pcl_clean'] + noise * self.std_factor
-        data['noise_std'] = self.std_factor
-        return data
-
-
+# discrete noise
 class AddDiscreteNoise(object):
 
     def __init__(self, scale, prob=0.1):
@@ -132,6 +167,7 @@ class AddDiscreteNoise(object):
         data['pcl_noisy'] = data['pcl_clean'] + noise * self.scale
         data['noise_std'] = self.scale
         return data
+
 
 
 class RandomScale(object):

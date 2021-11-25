@@ -1,9 +1,16 @@
+
+import os
 import math
 import torch
 import pytorch3d.loss
 import pytorch3d.structures
 from pytorch3d.loss.point_mesh_distance import point_face_distance
 from torch_cluster import fps
+
+from contextlib import redirect_stdout
+with open(os.devnull, 'w') as outer_space, redirect_stdout(outer_space):
+    from metric.PyTorchCD.chamfer3D import dist_chamfer_3D
+
 
 
 class FCLayer(torch.nn.Module):
@@ -186,3 +193,22 @@ def hausdorff_distance_unit_sphere(gen, ref):
     dists_hausdorff = torch.max(torch.cat([dists_ab, dists_ba], dim=1), dim=1)[0]
 
     return dists_hausdorff
+
+
+def remove_outliers(gen, ref, num_outliers: int):
+
+    chamefr_loss = dist_chamfer_3D.chamfer_3DDist()
+
+    (B, N, _), device = gen.shape, gen.device
+    dist1, dist2, _, _ = chamefr_loss(gen, ref)  # [B, N1], [B, N2]
+    idx_dist1 = torch.argsort(dist1, dim=-1, descending=True) # [B, N1]
+    idx_outliers = idx_dist1[:, :num_outliers]
+
+    # Get inverse idx
+    idxb = torch.arange(B).view(1, -1)
+    inv = torch.ones((B, N)).int().to(device)
+    inv[idxb, idx_outliers] = 0
+    inv = torch.nonzero(inv, as_tuple=False)[:, 1]
+    idx_inverse = inv.view(B, N - num_outliers)
+
+    return gen[idxb, idx_inverse]

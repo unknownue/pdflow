@@ -6,7 +6,7 @@ from torch import nn, Tensor
 from torch.nn import functional as F
 
 from metric.emd.emd_module import emdFunction
-from modules.utils.fps import square_distance
+# from modules.utils.fps import square_distance
 from kaolin.metrics.pointcloud import chamfer_distance
 
 

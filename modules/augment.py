@@ -29,6 +29,15 @@ class Sigmoid(nn.Module):
         return y, ldj
 
 # -----------------------------------------------------------------------------------------
+class NoAugmentLayer(nn.Module):
+
+    def forward(self, x: Tensor, **kwargs):
+        (B, N, _), device = x.shape, x.device
+        empty = torch.randn((B, N, 0), device=device)
+        ldj = torch.zeros(B, device=device)
+        return empty, ldj 
+
+# -----------------------------------------------------------------------------------------
 class AugmentLayer(nn.Module):
 
     def __init__(self, dist: Distribution, aug_channel: int, shallow_net: nn.Module, argument_steps: nn.ModuleList):
