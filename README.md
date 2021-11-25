@@ -19,9 +19,9 @@ Other require libraries:
 - pytorch-lightning==1.4.9 (for training)
 - [knn_cuda](https://github.com/unlimblue/KNN_CUDA)
 - [point-cloud-utils](https://github.com/fwilliams/point-cloud-utils) (for evaluation)
-- [torch-cluster](https://github.com/rusty1s/pytorch_cluster) (for evaluation)
-- [pytorch3d](https://github.com/facebookresearch/pytorch3d) (for evaluation)
-- [kaolin](https://github.com/NVIDIAGameWorks/kaolin) (for evaluation)
+- [torch-cluster](https://github.com/rusty1s/pytorch_cluster) (for denoising)
+- [pytorch3d](https://github.com/facebookresearch/pytorch3d) (for denoising)
+- [kaolin](https://github.com/NVIDIAGameWorks/kaolin) (for training)
 
 ### Docker configuration
 
@@ -70,13 +70,12 @@ python models/deflow/denoise.py \
 
 Evaluation & Reproduce Paper Results
 ```bash
-# PUNet dataset, 10K Points
+# PUSet dataset, 10K Points
 python models/deflow/denoise.py --input=data/ScoreDenoise/examples/PUNet_10000_poisson_0.01 --output=evaluation/PU_10000_n0.01_i1 --patch_size=1024 --niters=1 --ckpt=pretrain/pdflow-score-LCC.pt
 python models/deflow/denoise.py --input=data/ScoreDenoise/examples/PUNet_10000_poisson_0.02 --output=evaluation/PU_10000_n0.02_i1 --patch_size=1024 --niters=1 --ckpt=pretrain/pdflow-score-LCC.pt
 python models/deflow/denoise.py --input=data/ScoreDenoise/examples/PUNet_10000_poisson_0.03 --output=evaluation/PU_10000_n0.03_i1 --patch_size=1024 --niters=2 --ckpt=pretrain/pdflow-score-LCC.pt
-# PUNet dataset, 50K Points
+# PUSet dataset, 50K Points
 python models/deflow/denoise.py --input=data/ScoreDenoise/examples/PUNet_50000_poisson_0.01 --output=evaluation/PU_50000_n0.01_i1 --patch_size=1024 --niters=1 --ckpt=pretrain/pdflow-score-LCC.pt
 python models/deflow/denoise.py --input=data/ScoreDenoise/examples/PUNet_50000_poisson_0.02 --output=evaluation/PU_50000_n0.02_i1 --patch_size=1024 --niters=2 --first_iter_partition --ckpt=pretrain/pdflow-score-LCC.pt
 python models/deflow/denoise.py --input=data/ScoreDenoise/examples/PUNet_50000_poisson_0.03 --output=evaluation/PU_50000_n0.03_i1 --patch_size=1024 --niters=2 --first_iter_partition --ckpt=pretrain/pdflow-score-LCC.pt
 ```
-
