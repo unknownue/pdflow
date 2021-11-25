@@ -47,6 +47,7 @@ RUN pip install --no-cache-dir --user pytorch_lightning==1.3.8 scikit-learn && \
 #     tar jxvf blender-2.79b-linux-glibc219-x86_64.tar.bz2 && \
 #     wegt https://github.com/TylerGubala/blenderpy/releases/download/v2.91a0/bpy-2.91a0-cp37-cp37m-manylinux2014_x86_64.whl && \
 #     pip install bpy-2.91a0-cp37-cp37m-manylinux2014_x86_64.whl && bpy_post_install
+RUN sudo apt install libglu1 libxi-dev libxrender1
 # conda activate blender_render
 
 
