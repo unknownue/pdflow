@@ -56,15 +56,6 @@ RUN pip install --no-cache-dir --user torch-cluster -f https://data.pyg.org/whl/
     git clone --recursive https://github.com/NVIDIAGameWorks/kaolin && cd kaolin && \
     git checkout v0.9.1 && IGNORE_TORCH_VER=1 python setup.py develop --user
 
-# For render figures
-# RUN conda create -n blender_render python=3.7 && \
-#     wget "https://download.blender.org/release/Blender2.79/blender-2.79b-linux-glibc219-x86_64.tar.bz2" && \
-#     tar jxvf blender-2.79b-linux-glibc219-x86_64.tar.bz2 && \
-#     wegt https://github.com/TylerGubala/blenderpy/releases/download/v2.91a0/bpy-2.91a0-cp37-cp37m-manylinux2014_x86_64.whl && \
-#     pip install bpy-2.91a0-cp37-cp37m-manylinux2014_x86_64.whl && bpy_post_install
-# conda activate blender_render
-
-
 # CMD ["bash"]
 RUN python -c "import torch; print(torch.__config__.show())" && \
     python -m torch.utils.collect_env

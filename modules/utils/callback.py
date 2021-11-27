@@ -20,9 +20,10 @@ class TimeTrainingCallback(pl.Callback):
     #     self.timer.update()
     #     print(f'\nTraining time: \033[1m{self.timer}\033[0m')
 
-    def on_keyboard_interrupt(self, trainer, pl_module):
+    def on_exception(self, trainer, pl_module, exception):
         trainer.is_interrupted = True
-    
+        return super().on_exception(trainer, pl_module, exception)
+ 
     def on_fit_end(self, trainer, pl_module):
         self.timer.update()
         print(f'\nTraining time: \033[1m{self.timer}\033[0m')

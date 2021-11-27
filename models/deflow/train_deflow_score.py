@@ -17,17 +17,17 @@ from metric.loss import EarthMoverDistance as EMD
 
 from modules.utils.score_utils import chamfer_distance_unit_sphere
 from modules.utils.callback import TimeTrainingCallback
-from modules.utils.lightning import LightningModule
+from modules.utils.lightning import LightningProgressBar
 from modules.utils.modules import print_progress_log
 
 
 # -----------------------------------------------------------------------------------------
-class TrainerModule(LightningModule):
+class TrainerModule(pl.LightningModule):
 
     def __init__(self, cfg):
         super(TrainerModule, self).__init__()
 
-        self.disentangle_method = Disentanglement.FBM
+        self.disentangle_method = Disentanglement.LCC
         self.network = DenoiseFlow(self.disentangle_method)
         # self.network = DenoiseFlowMLP(self.disentangle_method)
 
@@ -70,7 +70,7 @@ class TrainerModule(LightningModule):
     def validation_step(self, batch, batch_idx):
 
         pcl_noisy, pcl_clean = batch['pcl_noisy'], batch['pcl_clean']
-        pcl_denoised = patch_denoise(self, pcl_noisy.squeeze(), patch_size=1000)  # Fix patch size
+        pcl_denoised = patch_denoise(self, pcl_noisy.squeeze(), patch_size=1024)  # Fix patch size
         
         return {
             'denoised': pcl_denoised,
@@ -144,15 +144,13 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
         'default_root_dir'     : './runs/',
         'gpus'                 : 1,  # Set this to None for CPU training
         'fast_dev_run'         : False,
-        'max_epochs'           : 100, # cfg.max_epoch,
-        'weights_summary'      : 'top',  # 'top', 'full' or None
-        'precision'            : 32,   # 16
-        # 'amp_level'            : 'O1',
+        'max_epochs'           : 150, # cfg.max_epoch,
+        'precision'            : 32,   # 32, 16, 'bf16'
         'gradient_clip_val'    : 1e-3,
         'deterministic'        : False,
-        'num_sanity_val_steps' : 0,# -1,  # -1 or 0
-        'checkpoint_callback'  : False,
-        'callbacks'            : [TimeTrainingCallback()],
+        'num_sanity_val_steps' : 0, # -1,  # -1 or 0
+        'enable_checkpointing' : False,
+        'callbacks'            : [TimeTrainingCallback(), LightningProgressBar()],
         # 'profiler'             : "pytorch",
     }
 
@@ -187,10 +185,7 @@ def train(phase='Train', checkpoint_path=None, begin_checkpoint=None):
 # -----------------------------------------------------------------------------------------
 if __name__ == "__main__":
 
-    checkpoint_path = 'runs/ckpt/DenoiseFlow-score-FBM-cut2-aug8'
-    # runs/ckpt/b005752-DenoiseFlow-scoreset-minCD.ckpt
-    # previous_path = 'runs/ckpt/DenoiseFlow-LBM-scoreset-minCD.ckpt'
-    # previous_path = 'runs/ckpt/5d2ddd6-DenoiseFlow-LCC-scoreset.ckpt'
+    checkpoint_path = 'runs/ckpt/DenoiseFlow-score-LCC'
 
     # train('Train', None, None)                      # Train from begining, and save nothing after finish
     train('Train', checkpoint_path, None)           # Train from begining, save network params after finish

@@ -13,10 +13,10 @@ Then other settings can be either configured manually or set up with docker.
 
 ### Manual configuration
 
-The code is implemented with CUDA 11.4, Python 3.8, PyTorch 1.10.0.
+The code is implemented with CUDA 11.5, Python 3.8, PyTorch 1.11.
 Other require libraries:
 
-- pytorch-lightning==1.4.9 (for training)
+- pytorch-lightning==1.5.3 (for training)
 - [knn_cuda](https://github.com/unlimblue/KNN_CUDA)
 - [point-cloud-utils](https://github.com/fwilliams/point-cloud-utils) (for evaluation)
 - [torch-cluster](https://github.com/rusty1s/pytorch_cluster) (for denoising)

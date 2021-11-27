@@ -1,6 +1,6 @@
 
 # https://ngc.nvidia.com/catalog/containers/nvidia:pytorch
-FROM nvcr.io/nvidia/pytorch:21.05-py3
+FROM nvcr.io/nvidia/pytorch:21.11-py3
 
 LABEL author="unknownue <unknownue@outlook.com>" version="1.0"
  
@@ -35,11 +35,17 @@ USER $DOCKER_USER
 
 # Packages -----------------------------------------------------------------
 RUN pip install --no-cache-dir --user pqi && pqi use aliyun
-RUN pip install --no-cache-dir --user pytorch_lightning==1.3.8 scikit-learn && \
+RUN pip install --no-cache-dir --user pytorch_lightning==1.5.3 scikit-learn rich && \
     pip install --user git+git://github.com/fwilliams/point-cloud-utils && \
     # https://github.com/unlimblue/KNN_CUDA
-    pip install --no-cache-dir --user --upgrade https://github.com/unlimblue/KNN_CUDA/releases/download/0.2/KNN_CUDA-0.2-py3-none-any.whl && \
-    pip install --user "git+git://github.com/erikwijmans/Pointnet2_PyTorch.git#egg=pointnet2_ops&subdirectory=pointnet2_ops_lib"
+    pip install --no-cache-dir --user --upgrade https://github.com/unlimblue/KNN_CUDA/releases/download/0.2/KNN_CUDA-0.2-py3-none-any.whl
+
+# For evaluation
+RUN pip install --user "git+https://github.com/facebookresearch/pytorch3d.git@stable" && \
+    git clone --recursive https://github.com/NVIDIAGameWorks/kaolin && cd kaolin && \
+    git checkout v0.9.1 && IGNORE_TORCH_VER=1 python setup.py develop --user && \
+    cd .. && git clone https://github.com/rusty1s/pytorch_cluster && \
+    cd pytorch_cluster && python setup.py install --user
 
 # For render figures
 # RUN conda create -n blender_render python=3.7 && \
@@ -47,7 +53,7 @@ RUN pip install --no-cache-dir --user pytorch_lightning==1.3.8 scikit-learn && \
 #     tar jxvf blender-2.79b-linux-glibc219-x86_64.tar.bz2 && \
 #     wegt https://github.com/TylerGubala/blenderpy/releases/download/v2.91a0/bpy-2.91a0-cp37-cp37m-manylinux2014_x86_64.whl && \
 #     pip install bpy-2.91a0-cp37-cp37m-manylinux2014_x86_64.whl && bpy_post_install
-RUN sudo apt install libglu1 libxi-dev libxrender1
+# RUN sudo apt install libglu1 libxi-dev libxrender1
 # conda activate blender_render
 
 
