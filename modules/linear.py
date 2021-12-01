@@ -97,9 +97,11 @@ class GatedConv1D(nn.Module):
         weight_init(self.conv2)
         weight_init(self.conv3)
     
+    @staticmethod
     def nonlinearity(x):
         return F.elu(torch.cat((x, -x), dim=1))
 
+    @staticmethod
     def gate(x):
         a, b = x.chunk(2, dim=1)
         return a * torch.sigmoid(b)

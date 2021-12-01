@@ -18,10 +18,12 @@ class ActNorm(nn.Module):
         if self.dim == 1:
             self.logs = nn.Parameter(torch.zeros((1, channel, 1)))  # log sigma
             self.bias = nn.Parameter(torch.zeros((1, channel, 1)))
+            self.Ndim = 2
         if self.dim == 2:
             self.logs = nn.Parameter(torch.zeros((1, 1, channel)))
             self.bias = nn.Parameter(torch.zeros((1, 1, channel)))
-        
+            self.Ndim = 1
+ 
         self.eps = 1e-6
         self.is_inited = False
 
@@ -34,7 +36,7 @@ class ActNorm(nn.Module):
 
         z = x * torch.exp(self.logs) + self.bias
         # z = (x - self.bias) * torch.exp(-self.logs)
-        logdet = x.shape[2] * torch.sum(self.logs)
+        logdet = x.shape[self.Ndim] * torch.sum(self.logs)
         return z, logdet
 
     def inverse(self, z: Tensor, _:Tensor=None):
