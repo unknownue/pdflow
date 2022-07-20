@@ -1,14 +1,21 @@
-
 # PD-Flow: A Point Cloud Denoising Framework with Normalizing Flows
 
-<!-- Official PyTorch implementation for paper: https://xxx.xx -->
+by Aihua Mao, Zihui Du, Yu-Hui Wen, Jun Xuan, and Yong-Jin Liu.
+
+## Introduction
+
+Official code of our ECCV 2022 paper. This work introduces a framework for point cloud denoising by incorporating normalizing flows.
+
+[Paper & Supplement]
 
 ## Environment
 
 First clone the code of this repo:
+
 ```bash
 git clone --recursive https://github.com/unknownue/pdflow
 ```
+
 Then other settings can be either configured manually or set up with docker.
 
 ### Manual configuration
@@ -30,6 +37,7 @@ If you are familiar with Docker, you can use provided [Dockerfile](docker/Docker
 ### Additional configuration
 
 If you want to train the network, you also need to build the kernel of PytorchEMD like followings:
+
 ```bash
 cd metric/PytorchEMD/
 python setup.py install --user
@@ -37,13 +45,16 @@ cp build/lib.linux-x86_64-3.8/emd_cuda.cpython-38m-x86_64-linux-gnu.so .
 ```
 
 ## Datasets
+
 All training and evaluation data can be downloaded from repo of [score-denoise](https://github.com/luost26/score-denoise) and [DMRDenoise](https://github.com/luost26/DMRDenoise/).
 After downloading, place the extracted files into `data` directory as list in [here](data/.gitkeep).
 
 We include a [pretrained model](pretrain/pdflow-score-LCC.pt) in this repo.
 
 ## Training & Denosing & Evaluation
+
 Train the model as followings:
+
 ```bash
 # train on PUSet, see train_deflow_score.py for tuning parameters
 python models/deflow/train_deflow_score.py
@@ -53,6 +64,7 @@ python models/deflow/train_deflow_dmr.py
 ```
 
 Denoising a single point cloud as followings:
+
 ```bash
 python models/deflow/denoise.py \
     --input=path/to/input.xyz \
@@ -61,6 +73,7 @@ python models/deflow/denoise.py \
 ```
 
 Denoising point clouds in directory as followings:
+
 ```bash
 python models/deflow/denoise.py \
     --input=path/to/input_directory \
@@ -69,6 +82,7 @@ python models/deflow/denoise.py \
 ```
 
 Evaluation & Reproduce Paper Results
+
 ```bash
 # PUSet dataset, 10K Points
 python models/deflow/denoise.py --input=data/ScoreDenoise/examples/PUNet_10000_poisson_0.01 --output=evaluation/PU_10000_n0.01_i1 --patch_size=1024 --niters=1 --ckpt=pretrain/pdflow-score-LCC.pt
@@ -78,4 +92,17 @@ python models/deflow/denoise.py --input=data/ScoreDenoise/examples/PUNet_10000_p
 python models/deflow/denoise.py --input=data/ScoreDenoise/examples/PUNet_50000_poisson_0.01 --output=evaluation/PU_50000_n0.01_i1 --patch_size=1024 --niters=1 --ckpt=pretrain/pdflow-score-LCC.pt
 python models/deflow/denoise.py --input=data/ScoreDenoise/examples/PUNet_50000_poisson_0.02 --output=evaluation/PU_50000_n0.02_i1 --patch_size=1024 --niters=2 --first_iter_partition --ckpt=pretrain/pdflow-score-LCC.pt
 python models/deflow/denoise.py --input=data/ScoreDenoise/examples/PUNet_50000_poisson_0.03 --output=evaluation/PU_50000_n0.03_i1 --patch_size=1024 --niters=2 --first_iter_partition --ckpt=pretrain/pdflow-score-LCC.pt
+```
+
+## Citation
+
+If this work is useful for your research, please consider citing:
+
+```bibtex
+@inproceedings{unknownue2022pdflow,
+  title={PD-Flow: A Point Cloud Denoising Framework with Normalizing Flows},
+  author={Mao, Aihua and Du, Zihui and Wen, Yu-Hui and Xuan, Jun and Liu, Yong-Jin},
+  booktitle={ECCV},
+  year={2022}
+}
 ```
