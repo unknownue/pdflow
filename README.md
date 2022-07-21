@@ -4,9 +4,9 @@ by Aihua Mao, Zihui Du, Yu-Hui Wen, Jun Xuan, and Yong-Jin Liu.
 
 ## Introduction
 
-Official code of our ECCV 2022 paper. This work introduces a framework for point cloud denoising by incorporating normalizing flows.
+Official code of our ECCV 2022 paper. [TODO: Paper & Supplement]
 
-[Paper & Supplement]
+This work introduces a framework for point cloud denoising by incorporating normalizing flows.
 
 ## Environment
 
@@ -81,10 +81,30 @@ python models/deflow/denoise.py \
     --patch_size=1024 --niters=1 --ckpt=pretrain/pdflow-score-LCC.pt
 ```
 
-Evaluation & Reproduce Paper Results
+Evaluation:
 
 ```bash
-Update Soon!
+# build executable to evaluate uniform, see build.sh for detail
+bash eval/uniformity/build.sh
+# evaluate all xyz files in a directory
+python eval/eval2.py \
+    --pred_dir=path/to/evaluation/directory \
+    --off_dir=path/to/off_mesh/directory \
+    --gt_dir=path/to/ground_truth/directory \
+    --csv=path/to/evaluation/directory/result.csv
+```
+
+Reproduce Paper Results:
+
+```bash
+# PUSet dataset, 10K Points
+python models/deflow/denoise.py --input=data/ScoreDenoise/examples/PUNet_10000_poisson_0.01 --output=evaluation/PU_10000_n0.01_i1 --patch_size=1024 --niters=1 --ckpt=pretrain/pdflow-score-LCC.pt
+python models/deflow/denoise.py --input=data/ScoreDenoise/examples/PUNet_10000_poisson_0.02 --output=evaluation/PU_10000_n0.02_i1 --patch_size=1024 --niters=1 --ckpt=pretrain/pdflow-score-LCC.pt
+python models/deflow/denoise.py --input=data/ScoreDenoise/examples/PUNet_10000_poisson_0.03 --output=evaluation/PU_10000_n0.03_i1 --patch_size=1024 --niters=2 --ckpt=pretrain/pdflow-score-LCC.pt
+# PUSet dataset, 50K Points
+python models/deflow/denoise.py --input=data/ScoreDenoise/examples/PUNet_50000_poisson_0.01 --output=evaluation/PU_50000_n0.01_i1 --patch_size=1024 --niters=1 --ckpt=pretrain/pdflow-score-LCC.pt
+python models/deflow/denoise.py --input=data/ScoreDenoise/examples/PUNet_50000_poisson_0.02 --output=evaluation/PU_50000_n0.02_i1 --patch_size=1024 --niters=2 --first_iter_partition --ckpt=pretrain/pdflow-score-LCC.pt
+python models/deflow/denoise.py --input=data/ScoreDenoise/examples/PUNet_50000_poisson_0.03 --output=evaluation/PU_50000_n0.03_i1 --patch_size=1024 --niters=2 --first_iter_partition --ckpt=pretrain/pdflow-score-LCC.pt
 ```
 
 ## Citation
