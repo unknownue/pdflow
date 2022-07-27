@@ -4,7 +4,7 @@ by Aihua Mao, Zihui Du, Yu-Hui Wen, Jun Xuan, and Yong-Jin Liu.
 
 ## Introduction
 
-Official code of our ECCV 2022 paper. [TODO: Paper & Supplement]
+Official code of our ECCV 2022 paper. [[Paper & Supplement]](https://arxiv.org/abs/2203.05940)
 
 This work introduces a framework for point cloud denoising by incorporating normalizing flows.
 
@@ -115,7 +115,7 @@ If this work is useful for your research, please consider citing:
 @inproceedings{unknownue2022pdflow,
   title={PD-Flow: A Point Cloud Denoising Framework with Normalizing Flows},
   author={Mao, Aihua and Du, Zihui and Wen, Yu-Hui and Xuan, Jun and Liu, Yong-Jin},
-  booktitle={ECCV},
+  booktitle={The European Conference on Computer Vision (ECCV)},
   year={2022}
 }
 ```
